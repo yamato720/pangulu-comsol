@@ -1,0 +1,26 @@
+# Local installations and machine-specific configuration.
+/runtime/
+/pangu/
+/config/runtime.json
+
+# Signed customer licences stay local; keep the usage note.
+/licence/*
+!/licence/README.txt
+
+# Models, generated results, archives and delivery drafts.
+/data/archive/
+/data/runs/
+/data/models/
+/data/releases/
+*.mph
+*.mph.lock
+*.mphbin
+
+# Interpreter and compiler outputs.
+__pycache__/
+*.py[cod]
+*.class
+*.o
+*.so
+*.so.*
+*.jar
