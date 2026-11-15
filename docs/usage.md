@@ -9,21 +9,33 @@
 ```bash
 ./start.sh
 ./start.sh /path/to/model.mph
-python3 -B pc.py doctor
-python3 -B pc.py discover
+./pangu-comsol doctor
+./pangu-comsol discover
 ```
 
 `config/runtime.json` 的 `comsol_root` 留空时自动搜索本机安装，路径未找到或有多份时填写具体安装目录。启动器不写 COMSOL 偏好文件，不传偏好、临时、恢复、工作区或配置目录的重定向参数；已有设置由 COMSOL 正常读取。默认继承线程配置及亲和性，只有显式 `--threads N` 才指定本次线程数。`licence_files=[]` 时自动读取 `licence/` 内全部 `.key` / `.license` 原件，以 SDK 要求的逗号分隔格式传入；授权始终由厂商库判断。
+
+## 初始化与管理
+
+```bash
+./pangu-comsol init
+./pangu-comsol config show
+./pangu-comsol license add /path/to/customer.key
+./pangu-comsol license list
+./pangu-comsol license use customer.key
+```
+
+init 不重置现有配置。可用 `--comsol`、`--cuda` 显式设置本次初始化的对应字段。`start.sh` 作为 GUI 快捷入口保留，内部转交 `pangu-comsol run`。
 
 ## 整体更新 SDK
 
 关闭本模块启动的 COMSOL 和 worker 后执行：
 
 ```bash
-./update.sh /path/to/pangulu-new-release.tar.gz
+./pangu-comsol package update /path/to/pangulu-new-release.tar.gz
 ```
 
-先解压到临时目录，检查厂商 `SHA256SUMS` 和 ABI，再替换 `pangu/`。失败恢复旧 SDK，`licence/` 和配置保持原样。也可直接删除 `pangu/` 内旧发行目录，再将新原包解压到 `pangu/`；无需 activate 或修改库路径。每次启动识别实际 SDK 并核对校验和，不依赖安装登记。新 ABI 需要配套适配模块；其他 CUDA/设备版本需单独验证。
+SDK 包由用户自行下载，CLI 只接收本地文件，不内置下载地址。首次导入使用 `package install`，更新使用 `package update`。先解压到临时目录，检查厂商 `SHA256SUMS` 和 ABI，再替换 `pangu/`。失败恢复旧 SDK，`licence/` 和配置保持原样。也可直接删除 `pangu/` 内旧发行目录，再将新原包解压到 `pangu/`；无需 activate 或修改库路径。每次启动识别实际 SDK 并核对校验和，不依赖安装登记。新 ABI 需要配套适配模块；其他 CUDA/设备版本需单独验证。
 
 ## 模型与 GUI
 
@@ -44,10 +56,10 @@ Pangu GUI 在空闲时为各 Study 已生成的兼容求解器树添加标准 Pa
 ## 批处理与 Java API
 
 ```bash
-python3 -B pc.py inspect /path/to/model.mph
-python3 -B pc.py configure /path/to/model.mph \
+./pangu-comsol inspect /path/to/model.mph
+./pangu-comsol configure /path/to/model.mph \
   --target sol1/s1/fc1 --output /path/to/model-pangu.mph --run
-python3 -B pc.py restore /path/to/model-pangu.mph \
+./pangu-comsol restore /path/to/model-pangu.mph \
   --target sol1/s1/fc1 --output /path/to/model-restored.mph
 ```
 
@@ -67,13 +79,13 @@ org.pangulu.comsol.PanguModule.restore(model, "sol1/s1/fc1");
 
 配套运行组件已提供时可直接启动。需要自行构建时，准备 gcc/g++、完整的 CUDA 12.9 开发头文件与库，以及 COMSOL 6.4 安装。Java 编译使用 COMSOL 自带工具。
 
-1. 复制 `config/distribution.json` 为 `config/runtime.json`。
+1. 执行 `./pangu-comsol init` 初始化本机配置；已有配置保留。
 2. 设置 `comsol_root` 和 `cuda_root`；构建时 CUDA 目录应包含 `include/` 和 `lib64/`。
-3. 将原始 SDK 解压到 `pangu/`，或使用 `./update.sh 原始发行包.tar.gz`。
+3. 将原始 SDK 解压到 `pangu/`，或使用 `./pangu-comsol package install 原始发行包.tar.gz`。
 4. 执行：
 
 ```bash
-python3 -B pc.py build
+./pangu-comsol build
 ```
 
 构建只使用 `src/`，产物写入 `runtime/module/`。目录中的组件清单用于校验版本、ABI 和文件哈希。运行所需的系统库版本取决于所用构建工具链，应以对应组件的要求为准。
@@ -82,4 +94,4 @@ python3 -B pc.py build
 
 单 GPU，实数/复数 FP64，CSR 输入转换为 CSC，支持 GENERAL/SYMMETRIC/HERMITIAN/SPD/HPD 及对应存储视图。内部维度与非零元数量限制在 int32 范围；多个 RHS 要求连续列主序。使用 strict 结构检查、L0/L2、hybrid memory never、hybrid compute off。
 
-转置/伴随、FP32、多 GPU、非连续多 RHS 等未实现路径会拒绝。cuDSS 的重排序、主元和诊断策略不与 Pangu 一一对应，限制见 [接口核对](compatibility/comsol-dcu.txt)。其他数值模式需按对应模型和功能验证。
+转置/伴随、FP32、多 GPU、非连续多 RHS 等未实现路径会拒绝。cuDSS 的重排序、主元和诊断策略不保证与 Pangu 一一对应。其他数值模式需按对应模型和功能验证。

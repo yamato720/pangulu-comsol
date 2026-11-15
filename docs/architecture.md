@@ -1,14 +1,15 @@
 # 接入结构
 
-入口是 `./start.sh`（GUI）或 `pc.py configure --run`（批处理），两者使用同一本机配置。
+统一入口为 `pangu-comsol`。`start.sh` 是 GUI 快捷入口，转交 `pangu-comsol run`；批处理、配置、SDK 包和许可管理使用同一 CLI。
 
 ## 源码阅读顺序
 
-核心分为三层。`start.sh` / `pc.py` 准备本次运行；Java 代码把模型的线性求解器连接到 cuDSS 槽位；C/C++ 代码实现这个槽位并调用 Pangu。
+核心分为三层。CLI 与 Python 运行层准备本次运行；Java 代码把模型的线性求解器连接到 cuDSS 槽位；C/C++ 代码实现这个槽位并调用 Pangu。
 
 | 层 | 从哪个文件看起 | 关键入口 |
 |---|---|---|
-| 启动与管理 | `pc.py` | `launch`、`comsol_command`、`clean_env`、`build` |
+| 命令与管理 | `src/python/pangulu_comsol/cli.py` | `init`、`config`、`package`、`license` |
+| 运行与构建 | `src/python/pangulu_comsol/runtime.py` | `launch`、`comsol_command`、`clean_env`、`build` |
 | GUI 选项 | `src/java/PanguDesktop.java` | `start`、空闲时的 `tick` |
 | 模型配置 | `src/java/PanguModule.java` | `targets`、`registerAll`、`apply`、`restore` |
 | cuDSS ABI | `src/bridge.cpp` | `cudssExecute`、矩阵暂存、`start_worker` / `rpc` |
@@ -18,7 +19,7 @@
 
 ## 一次求解的调用路径
 
-1. `pc.py` 读取 `config/runtime.json`，解析活动 SDK，在 `data/runs/` 建立自身记录与许可快照；COMSOL 偏好、临时和恢复路径继承默认或用户已有设置。
+1. Python 运行层读取 `config/runtime.json`，解析活动 SDK，在 `data/runs/` 建立自身记录与许可快照；COMSOL 偏好、临时和恢复路径继承默认或用户已有设置。
 2. COMSOL 的 `-cudssroot` 指向本模块 `runtime/module/`，从那里加载 `libcudss.so.0.7.1`。
 3. GUI 的 `PanguDesktop` 在空闲时用 `PanguModule.registerAll` 为所有兼容求解器操作添加标准 Direct 选项，保留原来的选择和已有解。用户在 Linear solver 中选择 Pangu 后使用 `cudss` 槽位。批处理则用 `PanguModule.apply` 显式选择指定节点。
 4. COMSOL 组装稀疏矩阵后调用 cuDSS 接口。`src/bridge.cpp` 接收这些调用，检查 CSR、标量类型、结构和求解阶段。
@@ -28,7 +29,7 @@
 
 ```mermaid
 flowchart TD
-    L[pc.py：配置与启动] --> C[原始 COMSOL]
+    L[pangu-comsol：命令与运行] --> C[原始 COMSOL]
     L --> D[src/java/PanguDesktop.java：注册 GUI 选项]
     D --> J[src/java/PanguModule.java：标准节点配置]
     J --> C
@@ -45,7 +46,7 @@ flowchart TD
 
 | 文件 | 作用 |
 |---|---|
-| `pc.py` | SDK 安装/校验/构建/切换、许可登记、本机会话和启动 |
+| `pangu-comsol`、`src/python/pangulu_comsol/` | 初始化配置、本地 SDK 包管理、原始许可文件管理、构建和启动 |
 | `src/java/PanguModule.java` | 模型检查、消费者选择、启用/恢复求解器 |
 | `src/java/PanguDesktop.java` | 本会话的全局选项注册、GUI 空闲检测和状态记录 |
 | `src/java/PanguBatch.java` | COMSOL batch 入口 |

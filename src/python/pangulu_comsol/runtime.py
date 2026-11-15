@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """COMSOL launcher with a replaceable vendor SDK and central licence folder."""
-import argparse, datetime, hashlib, json, os, pathlib, re, shutil, subprocess, sys, tarfile, tempfile, zipfile
+import datetime, hashlib, json, os, pathlib, re, shutil, subprocess, tarfile, tempfile, zipfile
 
-ROOT = pathlib.Path(__file__).resolve().parent
+ROOT = pathlib.Path(__file__).resolve().parents[3]
 MODULE_ABI = 2
 
 
@@ -33,14 +33,24 @@ def discover_comsol():
     return sorted({str(p.resolve()) for p in candidates if (p / 'bin/comsol').is_file() and (p / 'plugins').is_dir()})
 
 
-def cfg():
+def settings():
     c = dict(licensed_gpu_index=0, ordering=0, gui_global_options=True,
              comsol_root='', cuda_root='runtime/cuda', licence_files=[])
-    c.update(read(ROOT / 'config/runtime.json'))
+    template = ROOT / 'config/distribution.json'
+    if template.is_file():
+        c.update(read(template))
+    local = ROOT / 'config/runtime.json'
+    if local.is_file():
+        c.update(read(local))
+    return c
+
+
+def cfg():
+    c = settings()
     if not c['comsol_root']:
         found = discover_comsol()
         if len(found) != 1:
-            raise ValueError('Set comsol_root in config/runtime.json. Discovered installations: ' + str(found))
+            raise ValueError('Run pangu-comsol init --comsol <installation>. Discovered installations: ' + str(found))
         c['comsol_root'] = found[0]
     for key in ['comsol_root', 'cuda_root']:
         path = pathlib.Path(c[key]).expanduser()
@@ -136,7 +146,7 @@ def install(archive):
 
 def licence_paths():
     folder = ROOT / 'licence'
-    names = cfg()['licence_files']
+    names = settings()['licence_files']
     paths = [folder / name for name in names] if names else sorted(folder.glob('*.key')) + sorted(folder.glob('*.license'))
     if not paths:
         raise ValueError('Place your original signed .key file in licence/ and start again')
@@ -146,15 +156,22 @@ def licence_paths():
     return paths
 
 
-def license_add(source):
+def license_add(source, replace=False):
     source = pathlib.Path(source).resolve(strict=True)
     folder = ROOT / 'licence'
     folder.mkdir(exist_ok=True)
     target = folder / source.name
-    if target.exists() and sha(target) != sha(source):
-        raise ValueError('A different licence with this filename exists; choose a distinct filename')
+    if target.exists() and sha(target) != sha(source) and not replace:
+        raise ValueError('A different licence with this filename exists; use license add --replace to update it')
     if source != target.resolve():
-        shutil.copyfile(source, target)
+        with tempfile.NamedTemporaryFile(prefix='.licence-', dir=folder, delete=False) as stream:
+            temporary = pathlib.Path(stream.name)
+        try:
+            shutil.copyfile(source, temporary)
+            temporary.chmod(0o600)
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
     target.chmod(0o600)
     print('Original licence copied to:', target)
 
@@ -336,7 +353,7 @@ def launch(args):
     backend = getattr(args, 'backend', 'pangu')
     session = ROOT / 'data/runs' / ('comsol_' + datetime.datetime.now().strftime('%Y%m%dT%H%M%S_%f'))
     command, env, output = comsol_command(session, args.threads, backend)
-    if args.cmd == 'gui':
+    if args.cmd == 'run':
         info = read(session / 'session.json')
         global_options = backend == 'pangu' and cfg()['gui_global_options']
         if global_options:
@@ -371,50 +388,3 @@ def launch(args):
         raise RuntimeError('COMSOL command failed; inspect session logs')
     if args.run and ('PANGU_RUN_COMPLETE' not in text or (args.cmd == 'configure' and 'worker_started' not in (session / 'stderr.log').read_text())):
         raise RuntimeError('Requested solve/backend was not verified')
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    commands = parser.add_subparsers(dest='cmd', required=True)
-    commands.add_parser('discover', help='Find local COMSOL installations')
-    if (ROOT / 'src/worker.c').is_file():
-        commands.add_parser('build', help='Build production components from source')
-    item = commands.add_parser('install-sdk', help='Replace the complete Pangu SDK; preserve licence/')
-    item.add_argument('archive')
-    item = commands.add_parser('license', help='Copy an original key into licence/')
-    item.add_argument('path')
-    item = commands.add_parser('doctor', help='Check the installed SDK, GPU and original licence')
-    item.add_argument('--output')
-    item = commands.add_parser('gui', help='Start COMSOL with Pangu choices')
-    item.add_argument('input', nargs='?')
-    item.add_argument('--threads', type=int)
-    item.add_argument('--backend', choices=['pangu', 'cudss'], default='pangu')
-    for action in ['inspect', 'configure', 'restore']:
-        item = commands.add_parser(action)
-        item.add_argument('input')
-        item.add_argument('--output')
-        item.add_argument('--target', default='auto')
-        item.add_argument('--run', action='store_true')
-        item.add_argument('--threads', type=int)
-    args = parser.parse_args()
-    if args.cmd == 'discover':
-        print(json.dumps(discover_comsol(), ensure_ascii=False, indent=2))
-    elif args.cmd == 'install-sdk':
-        install(args.archive)
-    elif args.cmd == 'license':
-        license_add(args.path)
-    elif args.cmd == 'build':
-        build()
-    elif args.cmd == 'doctor':
-        doctor(args.output)
-    else:
-        return launch(args)
-    return 0
-
-
-if __name__ == '__main__':
-    try:
-        raise SystemExit(main())
-    except (ValueError, RuntimeError, OSError, subprocess.CalledProcessError) as error:
-        print('Pangu-COMSOL: ' + str(error), file=sys.stderr)
-        raise SystemExit(1)

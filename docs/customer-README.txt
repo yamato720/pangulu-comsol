@@ -1,68 +1,68 @@
 Pangu–COMSOL 使用说明
-==========================
+====================
 
-目录
+入口
 ----
-start.sh          启动 COMSOL GUI
-update.sh         从原始发行包整体更新 Pangu SDK
-pc.py             启动与配置入口
-pangu/            一份原始 Pangu 发行包的完整解压目录
-licence/          统一存放本机购买的原始许可文件
-config/           COMSOL 安装位置及运行设置
-runtime/module/   已编译适配库、worker、Java 扩展和原生环境检查
-runtime/cuda/     随包提供的 NVIDIA CUDA 12.9 数学运行库及原始许可说明
+pangu-comsol 是统一 CLI。start.sh 保留为一键 GUI 入口，内部调用 CLI 的 run 命令。
+需要 Python 3.12+、COMSOL 6.4、适配的 NVIDIA 驱动和原始许可。
+Linux x86_64 预编译组件的系统库要求以配套组件说明为准。
 
 首次使用
 --------
-1. 本机已有 COMSOL 6.4、NVIDIA 驱动、Python 3.12 或更高版本。
-   支持 Linux x86_64；预编译组件的具体系统库要求见配套说明。
-   不包含 COMSOL 安装程序。
-2. 将原始签名 .key 文件放进 licence/。通用包不带其他机器的授权。
-3. ./start.sh
-   启动器自动查找常见位置和 PATH 中的 COMSOL 安装。
-   找不到或找到多个安装时，在 config/runtime.json 中填写 comsol_root。
-   可用 python3 -B pc.py discover 查看发现的安装目录。
-4. 打开模型，在 Fully Coupled 等兼容节点的 Linear solver 中选择 Pangu。
-   启动和计算前使用原始厂商 SDK 检查许可及 GPU；错误记录在本次会话目录。
+  ./pangu-comsol init
+  ./pangu-comsol package install /path/to/pangulu-release.tar.gz
+  ./pangu-comsol license add /path/to/customer.key
+  ./pangu-comsol doctor
+  ./start.sh
 
-已提供预编译组件，正常启动及同 ABI 的 SDK 更新无需编译器、开发源码或测试脚本。
+init 初始化本模块 config/runtime.json，已有配置保持原样。
+首次使用会查找 COMSOL，找到多份或没有找到时可显式设置：
+  ./pangu-comsol init --comsol /path/to/multiphysics --cuda /path/to/cuda
 
-整体更新 Pangu
---------------
-先关闭本模块启动的 COMSOL 窗口及求解进程，然后执行：
+配套组件已预编译时无需编译器。只有源码时，准备 CUDA 开发头文件和库、gcc/g++，
+执行 ./pangu-comsol build。模组不包含 COMSOL 安装程序。
 
-  ./update.sh /path/to/pangulu-new-release.tar.gz
-
-更新器先在临时目录解压并检查原始 SHA256SUMS 和 Pangu ABI，成功后替换 pangu/。
-更新失败保留原 SDK；licence/、config/ 和已有运行结果不随 SDK 替换。
-不需要 activate、登记版本或修改库路径。成功后重新启动 COMSOL。
-
-也可手动删除 pangu/ 内旧的完整解压目录，再把新发行包解压到 pangu/。
-该目录内保持恰好一份 SDK；启动器直接识别其中 include/pangulu.h 和 lib/libpangulu.so。
-每次启动重新核对原始 SDK 校验和，不依赖安装登记文件。
-
-本模块支持 Pangu ABI 2，随包 CUDA runtime 为 12.9。新 ABI 或其他 CUDA/硬件版本需配套模块。
-原始 SDK 自带的文档、第三方声明和样例保持厂商发行包原样。
-
-其他命令
---------
-  python3 -B pc.py doctor
+运行
+----
   ./start.sh /path/to/model.mph
-  ./start.sh --backend cudss /path/to/model.mph
-  python3 -B pc.py inspect /path/to/model.mph
-  python3 -B pc.py configure /path/to/model.mph --target sol1/s1/fc1 --output /path/to/model-pangu.mph
+  ./pangu-comsol run /path/to/model.mph
+  ./pangu-comsol run --backend cudss /path/to/model.mph
 
-带模型路径启动时，先复制到 data/runs/comsol_<时间戳>/models/ 后打开工作副本。
-全局选项注册保留当前选择、启用状态和已有解，不自动计算或保存。
-GUI 内直接打开原文件后按 Ctrl+S 仍会保存原文件，需要保留原件时使用 Save As。
-模型使用标准 Direct 节点，普通 COMSOL 能读取；普通会话中该节点按原生 cuDSS 配置运行。
+在 Fully Coupled 等兼容节点的 Linear solver 中选择 Pangu。
+选项注册保留当前选择和已有解，不自动计算或保存。
+带模型路径启动时打开 data/runs/ 内的工作副本；GUI 内直接打开原文件后保存仍会写回原文件。
 
-运行输出在首次使用时创建于 data/runs/；每次会话的 session.json 记录 SDK、worker、库和许可哈希。
+SDK 包管理
+----------
+发行包由用户自行下载或从供货方取得，CLI 不内置下载网址，只接收本地原始文件。
+  ./pangu-comsol package status
+  ./pangu-comsol package update /path/to/new-pangulu-release.tar.gz
 
+更新前关闭本模块启动的 COMSOL 和 worker。先检查原始 SHA256SUMS 与 ABI，
+再整体替换 pangu/。失败恢复旧 SDK；licence/、配置和运行结果保持原样。
+也可手动删除 pangu/ 内旧发行目录，再解压新原包；保持其中恰好一份完整 SDK。
 
-设置继承
+许可管理
 --------
-启动器不创建或改写 COMSOL 偏好文件，偏好、临时、恢复、工作区和配置目录均按默认或已有设置使用。
-线程数不默认覆盖，仅显式 --threads N 指定本次线程数；已有亲和性选项保留。
-Pangu 库和 GUI 模块仅在当前进程加载，不写入 COMSOL 安装或用户偏好。
+  ./pangu-comsol license add /path/to/customer.key
+  ./pangu-comsol license list
+  ./pangu-comsol license use customer.key
+  ./pangu-comsol license auto
+  ./pangu-comsol license add /path/to/renewed/customer.key --replace
+
+CLI 只管理原始签名文件，保持其字节不变；授权由厂商 SDK 校验。
+license use 指定已导入文件的文件名，多个名称用空格分隔。
+license auto 使用 licence/ 中全部 .key / .license 文件；传给 SDK 时按厂商要求使用逗号分隔。
+默认不覆盖不同内容的同名文件，续期替换须显式使用 --replace。
+
+配置与检查
+----------
+  ./pangu-comsol config show
+  ./pangu-comsol config set comsol_root /path/to/multiphysics
+  ./pangu-comsol config set gui_global_options false
+  ./pangu-comsol status
+  ./pangu-comsol doctor
+
+这些命令只管理本模块配置，不写 COMSOL 偏好文件，不重定向已有目录设置。
+线程数默认继承原设置，仅 run --threads N 时指定本次线程数。
 COMSOL 自身正常保存界面状态和用户操作的行为保持原样。

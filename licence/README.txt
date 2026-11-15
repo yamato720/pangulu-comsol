@@ -3,3 +3,9 @@
 也可在 config/runtime.json 的 licence_files 中填写要使用的文件名列表。
 更新 pangu/ 内的 SDK 不会改变本目录。
 通用发放包不包含开发机器或其他客户的许可，客户许可按订单单独配发。
+
+统一 CLI：pangu-comsol license add /path/to/customer.key
+列出许可：pangu-comsol license list
+选择许可：pangu-comsol license use customer.key
+自动选择：pangu-comsol license auto
+续期替换同名原件：pangu-comsol license add /path/to/customer.key --replace

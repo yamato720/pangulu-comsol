@@ -1,16 +1,24 @@
 # 运行配置
 
-`distribution.json` 是通用模板，首次配置时复制为 `runtime.json`。后者保存本机路径，不纳入 Git；更新 SDK 不覆盖它。
+`distribution.json` 是通用模板，`pangu-comsol init` 据此创建本机 `runtime.json`。已有配置不会被重置，仅显式选项修改对应字段；本机配置不纳入 Git。
+
+```bash
+./pangu-comsol init --comsol /path/to/multiphysics --cuda /path/to/cuda
+./pangu-comsol config show
+./pangu-comsol config set gui_global_options false
+```
 
 | 字段 | 含义 |
 |---|---|
-| `comsol_root` | COMSOL 安装目录；留空时自动查找，找到多份时需填写 |
-| `cuda_root` | CUDA 运行库目录；客户包为相对路径 `runtime/cuda` |
+| `comsol_root` | COMSOL 安装目录；留空时自动查找，多份安装时需指定 |
+| `cuda_root` | CUDA 运行库目录；配套目录一般为 `runtime/cuda` |
 | `licensed_gpu_index` | 原始 SDK 已授权 GPU 列表中的索引，默认 0 |
 | `ordering` | Pangu 重排序：0=L0，1=L1；复用级别为 L2 |
-| `gui_global_options` | 在 GUI 动态提供 Pangu 选项，保留当前选择和已有解，不自动保存 |
-| `licence_files` | `licence/` 下的原始许可文件名列表；空列表时读取全部 `.key` / `.license` 文件 |
+| `gui_global_options` | 在 GUI 动态提供 Pangu 选项，不自动选择、计算或保存 |
+| `licence_files` | `licence/` 下的原始许可文件名列表；空列表时读取全部 `.key` / `.license` |
 
-SDK 固定从 `pangu/` 下唯一完整发行目录读取，许可固定从 `licence/` 读取，不需要 profile 或版本登记。`./update.sh 原包.tar.gz` 整体替换 SDK；也可以关闭进程后手动删除旧发行目录，再将新包解压到 `pangu/`。更新 SDK 不清除许可、配置和运行结果。
+`config set` 的数值、布尔和列表值使用 JSON 写法，如 `0`、`false`、`["customer.key"]`。许可选择也可直接使用 `license use customer.key` 或 `license auto`。
 
-启动器不创建或改写 COMSOL 的 `.prefs`，也不重定向偏好、临时、恢复、工作区或插件配置目录。默认和用户已有设置由 COMSOL 自己读取。默认不传 `-np` 或改 OpenMP/BLAS 线程数；显式 `--threads N` 只为本次启动指定线程数，并保留亲和性与动态线程选项。Pangu 库和 GUI 模块只用于当前启动，不写入用户偏好。
+SDK 位于 `pangu/` 下唯一完整发行目录，许可独立放在 `licence/`。CLI 的包管理只接收用户提供的本地发行包；SDK 更新不清除许可、配置和运行结果，手动解压也可直接识别。
+
+本模块配置与 COMSOL 自身偏好分开。启动器不创建或改写 `.prefs`，不重定向偏好、临时、恢复、工作区或配置目录。线程数只在显式 `--threads` 时指定；已有亲和性与动态线程选项保留。

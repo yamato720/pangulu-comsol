@@ -2,9 +2,8 @@
 /*
 !/.gitignore
 !/README.md
-!/pc.py
+!/pangu-comsol
 !/start.sh
-!/update.sh
 !/src/
 
 !/config/
