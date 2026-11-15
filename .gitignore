@@ -1,22 +1,28 @@
-# Local installations and machine-specific configuration.
-/runtime/
-/pangu/
-/config/runtime.json
+# Only production source, entrypoints and client documentation are tracked.
+/*
+!/.gitignore
+!/README.md
+!/pc.py
+!/start.sh
+!/update.sh
+!/src/
 
-# Signed customer licences stay local; keep the usage note.
+!/config/
+/config/*
+!/config/distribution.json
+!/config/README.md
+
+!/licence/
 /licence/*
 !/licence/README.txt
 
-# Models, generated results, archives and delivery drafts.
-/data/archive/
-/data/runs/
-/data/models/
-/data/releases/
-*.mph
-*.mph.lock
-*.mphbin
+!/docs/
+/docs/*
+!/docs/usage.md
+!/docs/architecture.md
+!/docs/customer-README.txt
 
-# Interpreter and compiler outputs.
+# Generated compiler/interpreter outputs are never production source.
 __pycache__/
 *.py[cod]
 *.class

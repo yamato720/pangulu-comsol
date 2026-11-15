@@ -1,0 +1,8 @@
+{
+  "comsol_root": "",
+  "cuda_root": "runtime/cuda",
+  "licensed_gpu_index": 0,
+  "ordering": 0,
+  "gui_global_options": true,
+  "licence_files": []
+}
