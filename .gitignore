@@ -4,6 +4,9 @@
 !/README.md
 !/pangu-comsol
 !/start.sh
+!/pyproject.toml
+!/setup.py
+!/MANIFEST.in
 !/src/
 
 !/config/
@@ -29,3 +32,4 @@ __pycache__/
 *.so
 *.so.*
 *.jar
+*.egg-info/

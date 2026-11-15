@@ -1,6 +1,6 @@
 # 接入结构
 
-统一入口为 `pangu-comsol`。`start.sh` 是 GUI 快捷入口，转交 `pangu-comsol run`；批处理、配置、SDK 包和许可管理使用同一 CLI。
+统一入口为可安装的 `pangu-comsol` 终端应用，无参数进入交互界面，保留子命令。`start.sh` 是 GUI 快捷入口，转交 `pangu-comsol run`；批处理、配置、SDK 包和许可管理使用同一 CLI。
 
 ## 源码阅读顺序
 
@@ -8,6 +8,8 @@
 
 | 层 | 从哪个文件看起 | 关键入口 |
 |---|---|---|
+| 终端界面 | `src/python/pangulu_comsol/tui.py` | 页面、后台操作、错误反馈与取消 |
+| 安装与数据目录 | `paths.py`、`pyproject.toml`、`setup.py` | 标准命令入口、独立数据目录、正式构建资源 |
 | 命令与管理 | `src/python/pangulu_comsol/cli.py` | `init`、`config`、`package`、`license` |
 | 运行与构建 | `src/python/pangulu_comsol/runtime.py` | `launch`、`comsol_command`、`clean_env`、`build` |
 | GUI 选项 | `src/java/PanguDesktop.java` | `start`、空闲时的 `tick` |
@@ -15,7 +17,7 @@
 | cuDSS ABI | `src/bridge.cpp` | `cudssExecute`、矩阵暂存、`start_worker` / `rpc` |
 | Pangu 调用 | `src/worker.c` | `main`、`load_matrix`、`initialize_analysis`、`factor`、`phase` |
 
-`pangu/` 保存原始厂商 SDK，`licence/` 保存独立许可，`runtime/` 保存编译组件和运行依赖。运行时文件与正式源码分开放置。
+`pangu/` 保存原始厂商 SDK，`licence/` 保存独立许可，`runtime/` 保存编译组件和运行依赖。安装时程序代码与这些可变运行文件分开。默认数据目录使用 XDG 用户数据位置，`--home` 可指定已有目录。正式 C/C++、Java 构建资源随 Python 应用安装，源码目录移走后仍可构建运行组件。
 
 ## 一次求解的调用路径
 
@@ -69,3 +71,5 @@ SDK 完整原件放在 `pangu/` 下唯一发行目录，许可放在根目录 `l
 ## 运行记录
 
 模组自身的记录放在 `data/runs/comsol_<时间戳>/`，`session.json` 保存后端、实际库路径、SDK 与许可哈希以及启动参数。模型工作副本和批处理输出按命令指定的位置保存。COMSOL 自身的偏好、缓存、临时与恢复文件仍按默认或用户已有设置管理。
+
+终端页面通过独立子进程调用同一 CLI，不在界面线程执行 GPU 检查、解压或编译。COMSOL GUI 使用独立进程和会话日志，终端界面退出不依赖管道维持 GUI。

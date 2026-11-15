@@ -2,6 +2,14 @@
 
 客户版结构和操作见 [客户说明](customer-README.txt)。本模块目前验证 Linux x86_64、COMSOL 6.4、Pangu ABI 2 和 NVIDIA CUDA 12.9。
 
+## 终端应用与安装
+
+在交互终端中执行 `pangu-comsol` 或 `pangu-comsol menu` 进入菜单，保留所有子命令用于自动化。`pipx install .` 或虚拟环境中的 `python -m pip install .` 可安装应用，安装后无需停留在源码目录。
+
+安装版本的 SDK、许可及配置默认位于 `~/.local/share/pangu-comsol/`（或 `$XDG_DATA_HOME/pangu-comsol/`），可用 `--home /path/to/data` 或 `PANGU_COMSOL_HOME` 指定。源码入口 `./pangu-comsol` 默认仍使用本模组目录。Python 应用升级只替换程序代码，不清除这些可变文件。
+
+菜单包含概览、配置、运行、SDK 包和授权页面。F1–F5 切换页面，F6 刷新，F7 检查，Ctrl+C 取消当前操作，Ctrl+Q 退出。SDK 更新和组件构建期间要等待操作完成或取消收尾；COMSOL GUI 独立运行，退出菜单不会关闭已提交的 GUI。
+
 ## 客户使用
 
 原始 SDK 的完整解压目录放在 `pangu/` 中，购买的原始签名许可放在 `licence/` 中。客户包已带预编译的适配库、worker 和 Java 扩展，无需开发编译工具或 `dev/`。
@@ -88,7 +96,7 @@ org.pangulu.comsol.PanguModule.restore(model, "sol1/s1/fc1");
 ./pangu-comsol build
 ```
 
-构建只使用 `src/`，产物写入 `runtime/module/`。目录中的组件清单用于校验版本、ABI 和文件哈希。运行所需的系统库版本取决于所用构建工具链，应以对应组件的要求为准。
+源码运行时构建使用 `src/`；安装后的应用使用随包的同一套正式 C/C++、Java 源码。产物写入应用数据目录的 `runtime/module/`。目录中的组件清单用于校验版本、ABI 和文件哈希。运行所需的系统库版本取决于所用构建工具链，应以对应组件的要求为准。
 
 ## 适配范围
 

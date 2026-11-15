@@ -3,9 +3,18 @@ Pangu–COMSOL 使用说明
 
 入口
 ----
-pangu-comsol 是统一 CLI。start.sh 保留为一键 GUI 入口，内部调用 CLI 的 run 命令。
+pangu-comsol 是可安装的终端应用；无参数启动进入交互菜单，也保留子命令。
+start.sh 保留为源码/模组目录的一键 GUI 入口，内部调用 run 命令。
 需要 Python 3.12+、COMSOL 6.4、适配的 NVIDIA 驱动和原始许可。
 Linux x86_64 预编译组件的系统库要求以配套组件说明为准。
+
+安装与交互菜单
+--------------
+从本地源码安装：pipx install .，或在 Python 虚拟环境中 python -m pip install .。
+安装后执行 pangu-comsol 打开终端菜单，F1–F5 切换页面，F6 刷新，F7 检查，
+Ctrl+C 取消当前操作，Ctrl+Q 退出。操作详情可查看具体错误，处理后可重试。
+默认应用数据位于 ~/.local/share/pangu-comsol/，可用 --home 指向已有模组目录。
+SDK、许可和配置与 Python 程序分开放置，更新程序不会清除它们。
 
 首次使用
 --------
@@ -24,6 +33,8 @@ init 初始化本模块 config/runtime.json，已有配置保持原样。
 
 运行
 ----
+菜单启动 COMSOL 时使用独立进程，提交后可继续使用或退出菜单。
+子命令 run 默认前台等待；加 --detach 可提交启动后立即返回。
   ./start.sh /path/to/model.mph
   ./pangu-comsol run /path/to/model.mph
   ./pangu-comsol run --backend cudss /path/to/model.mph

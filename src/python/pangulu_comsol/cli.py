@@ -6,8 +6,9 @@ import subprocess
 import sys
 import tempfile
 from . import runtime as core
+from . import __version__
 
-VERSION = '0.3.0'
+VERSION = __version__
 CONFIG_KEYS = {'comsol_root', 'cuda_root', 'licensed_gpu_index', 'ordering', 'gui_global_options', 'licence_files'}
 
 
@@ -80,16 +81,18 @@ def init_config(args):
              'discovered_installations': found})
 
 
-def set_config(key, value):
+def validate_setting(key, parsed):
     if key not in CONFIG_KEYS:
         raise ValueError('Unknown setting. Choose from: ' + ', '.join(sorted(CONFIG_KEYS)))
-    values = core.read(config_file()) if config_file().is_file() else core.settings()
     if key == 'comsol_root':
-        parsed = validate_comsol(value)
+        if not isinstance(parsed, str):
+            raise ValueError('comsol_root must be a path string')
+        parsed = validate_comsol(parsed)
     elif key == 'cuda_root':
-        parsed = validate_cuda(value)
+        if not isinstance(parsed, str):
+            raise ValueError('cuda_root must be a path string')
+        parsed = validate_cuda(parsed)
     else:
-        parsed = json.loads(value)
         if key == 'gui_global_options' and not isinstance(parsed, bool):
             raise ValueError('gui_global_options must be true or false')
         if key in {'licensed_gpu_index', 'ordering'} and (type(parsed) is not int or parsed < 0):
@@ -101,9 +104,26 @@ def set_config(key, value):
                 raise ValueError('licence_files must be a JSON list of filenames')
             for name in parsed:
                 licence_file(name)
+    return parsed
+
+
+def set_config(key, value):
+    parsed = validate_setting(key, value if key in {'comsol_root', 'cuda_root'} else json.loads(value))
+    values = core.read(config_file()) if config_file().is_file() else core.settings()
     values[key] = parsed
     save_settings(values)
     display({key: parsed})
+
+
+def apply_config(value):
+    changes = json.loads(value)
+    if not isinstance(changes, dict):
+        raise ValueError('config apply expects a JSON object')
+    validated = {key: validate_setting(key, item) for key, item in changes.items()}
+    values = core.read(config_file()) if config_file().is_file() else core.settings()
+    values.update(validated)
+    save_settings(values)
+    display(validated)
 
 
 def licence_file(name):
@@ -162,7 +182,9 @@ def status():
 def parser():
     app = argparse.ArgumentParser(prog='pangu-comsol', description=__doc__)
     app.add_argument('--version', action='version', version='%(prog)s ' + VERSION)
+    app.add_argument('--home', type=pathlib.Path, help='SDK/licence/config data directory; separate from the installed app')
     commands = app.add_subparsers(dest='command')
+    commands.add_parser('menu', help='Open the interactive terminal application')
     item = commands.add_parser('init', help='Initialize module configuration without resetting existing choices')
     item.add_argument('--comsol', help='COMSOL installation folder')
     item.add_argument('--cuda', help='CUDA folder containing lib64/')
@@ -171,10 +193,13 @@ def parser():
     item = config.add_parser('set')
     item.add_argument('key', choices=sorted(CONFIG_KEYS))
     item.add_argument('value')
+    item = config.add_parser('apply', help='Atomically apply a JSON object of module settings')
+    item.add_argument('value')
     item = commands.add_parser('run', help='Open COMSOL with this module')
     item.add_argument('input', nargs='?', help='Optional MPH model')
     item.add_argument('--threads', type=int)
     item.add_argument('--backend', choices=['pangu', 'cudss'], default='pangu')
+    item.add_argument('--detach', action='store_true', help='Start GUI in its own session and return immediately')
     package = commands.add_parser('package', help='Manage manually downloaded, local Pangu SDK archives').add_subparsers(dest='action', required=True)
     package.add_parser('status')
     for action in ['install', 'update']:
@@ -188,10 +213,10 @@ def parser():
     licence.add_parser('auto', help='Use all original licence files in licence/')
     item = commands.add_parser('doctor', help='Check SDK, module, GPU and original licence')
     item.add_argument('--output')
+    item.add_argument('--json', action='store_true', help='Return the native check as structured JSON')
     commands.add_parser('status', help='Show module configuration and imported licences')
     commands.add_parser('discover', help='Find local COMSOL installations')
-    if (core.ROOT / 'src/worker.c').is_file():
-        commands.add_parser('build', help='Build production components from source')
+    commands.add_parser('build', help='Build production components from the application sources')
     for action in ['inspect', 'configure', 'restore']:
         item = commands.add_parser(action)
         item.add_argument('input')
@@ -205,12 +230,30 @@ def parser():
 def main(argv=None):
     app = parser()
     args = app.parse_args(argv)
-    if args.command is None:
-        app.print_help();return 0
+    if args.home is not None:
+        core.ROOT = args.home.expanduser().resolve()
+    if args.command == 'menu' or args.command is None:
+        if not (sys.stdin.isatty() and sys.stdout.isatty()):
+            if args.command == 'menu':
+                raise ValueError('The terminal menu requires an interactive terminal')
+            app.print_help()
+            return 0
+        try:
+            from .tui import PanguComsolApp
+        except ModuleNotFoundError as error:
+            if error.name == 'textual':
+                raise RuntimeError('Install the application dependencies first: pipx install .') from error
+            raise
+        return PanguComsolApp().run() or 0
     if args.command == 'init':
         init_config(args)
     elif args.command == 'config':
-        display(core.settings()) if args.action == 'show' else set_config(args.key, args.value)
+        if args.action == 'show':
+            display(core.settings())
+        elif args.action == 'apply':
+            apply_config(args.value)
+        else:
+            set_config(args.key, args.value)
     elif args.command == 'package':
         display(package_info()) if args.action == 'status' else install_package(args.archive, args.action == 'update')
     elif args.command == 'license':
@@ -221,7 +264,9 @@ def main(argv=None):
         else:
             select_licences(args.names if args.action == 'use' else [])
     elif args.command == 'doctor':
-        core.doctor(args.output)
+        report = core.doctor(args.output, native_output=not args.json)
+        if args.json:
+            display(report)
     elif args.command == 'discover':
         display(core.discover_comsol())
     elif args.command == 'status':
@@ -237,6 +282,9 @@ def main(argv=None):
 def entrypoint():
     try:
         return main()
+    except KeyboardInterrupt:
+        print('pangu-comsol: operation cancelled', file=sys.stderr)
+        return 130
     except (ValueError, RuntimeError, OSError, subprocess.CalledProcessError) as error:
         print('pangu-comsol: ' + str(error), file=sys.stderr)
         return 1

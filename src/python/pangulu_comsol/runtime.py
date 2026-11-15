@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """COMSOL launcher with a replaceable vendor SDK and central licence folder."""
 import datetime, hashlib, json, os, pathlib, re, shutil, subprocess, tarfile, tempfile, zipfile
+from .paths import application_home, production_sources, configuration_template
 
-ROOT = pathlib.Path(__file__).resolve().parents[3]
+ROOT = application_home()
 MODULE_ABI = 2
 
 
@@ -36,6 +37,9 @@ def discover_comsol():
 def settings():
     c = dict(licensed_gpu_index=0, ordering=0, gui_global_options=True,
              comsol_root='', cuda_root='runtime/cuda', licence_files=[])
+    packaged_template = configuration_template()
+    if packaged_template.is_file():
+        c.update(read(packaged_template))
     template = ROOT / 'config/distribution.json'
     if template.is_file():
         c.update(read(template))
@@ -108,7 +112,7 @@ def install(archive):
     """Validate first, replace the complete SDK, preserve licence/."""
     archive = pathlib.Path(archive).resolve(strict=True)
     runtime = ROOT / 'runtime'
-    runtime.mkdir(exist_ok=True)
+    runtime.mkdir(parents=True, exist_ok=True)
     for proc in pathlib.Path('/proc').iterdir():
         if not proc.name.isdigit() or int(proc.name) == os.getpid():
             continue
@@ -159,7 +163,7 @@ def licence_paths():
 def license_add(source, replace=False):
     source = pathlib.Path(source).resolve(strict=True)
     folder = ROOT / 'licence'
-    folder.mkdir(exist_ok=True)
+    folder.mkdir(parents=True, exist_ok=True)
     target = folder / source.name
     if target.exists() and sha(target) != sha(source) and not replace:
         raise ValueError('A different licence with this filename exists; use license add --replace to update it')
@@ -201,7 +205,7 @@ def clean_env(p=None, threads=None):
 
 
 def java_sources():
-    return sorted((ROOT / 'src/java').glob('*.java'))
+    return sorted((production_sources() / 'java').glob('*.java'))
 
 
 def build_java(output):
@@ -236,18 +240,21 @@ def build():
     c = cfg()
     cuda = pathlib.Path(c['cuda_root'])
     runtime = ROOT / 'runtime'
-    runtime.mkdir(exist_ok=True)
+    runtime.mkdir(parents=True, exist_ok=True)
+    source = production_sources()
+    if not (source / 'worker.c').is_file():
+        raise ValueError('Production sources are missing from this application installation')
     with tempfile.TemporaryDirectory(prefix='.module-build-', dir=runtime) as temp:
         output = pathlib.Path(temp) / 'module'
         output.mkdir()
-        includes = ['-I' + str(p / 'include'), '-I' + str(cuda / 'include'), '-I' + str(ROOT / 'src')]
+        includes = ['-I' + str(p / 'include'), '-I' + str(cuda / 'include'), '-I' + str(source)]
         libraries = ['-L' + str(p / 'lib'), '-L' + str(cuda / 'lib64'), '-Wl,--enable-new-dtags', '-Wl,-rpath,$ORIGIN/../cuda/lib64']
         native_libs = [*libraries, '-Wl,--no-as-needed', '-lpangulu', '-lcudart', '-lcublas', '-lcublasLt', '-ldl', '-lm']
         commands = [
-            ['gcc', '-O2', '-std=gnu11', *includes, str(ROOT / 'src/native_license.c'), '-o', str(output / 'native_license'), *native_libs],
-            ['gcc', '-O2', '-std=gnu11', '-DPGL_PROFILE=0', *includes, str(ROOT / 'src/worker.c'), '-o', str(output / 'pangulu_worker'), *native_libs, '-pthread'],
-            ['g++', '-O2', '-std=c++17', '-shared', '-fPIC', '-DPGL_PROFILE=0', *includes, '-I' + str(ROOT / 'src/include/cudss'),
-             str(ROOT / 'src/bridge.cpp'), '-o', str(output / 'libcudss.so.0.7.1'), *libraries, '-lcudart', '-Wl,-soname,libcudss.so.0']]
+            ['gcc', '-O2', '-std=gnu11', *includes, str(source / 'native_license.c'), '-o', str(output / 'native_license'), *native_libs],
+            ['gcc', '-O2', '-std=gnu11', '-DPGL_PROFILE=0', *includes, str(source / 'worker.c'), '-o', str(output / 'pangulu_worker'), *native_libs, '-pthread'],
+            ['g++', '-O2', '-std=c++17', '-shared', '-fPIC', '-DPGL_PROFILE=0', *includes, '-I' + str(source / 'include/cudss'),
+             str(source / 'bridge.cpp'), '-o', str(output / 'libcudss.so.0.7.1'), *libraries, '-lcudart', '-Wl,-soname,libcudss.so.0']]
         with (output / 'build.log').open('w') as log:
             for command in commands:
                 subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -255,10 +262,10 @@ def build():
             (output / name).symlink_to('libcudss.so.0.7.1')
         build_java(output)
         shipped = ['native_license', 'pangulu_worker', 'libcudss.so.0.7.1', 'PanguModule.jar', 'PanguDesktop.jar']
-        sources = [*java_sources(), *(ROOT / 'src').glob('*.c'), *(ROOT / 'src').glob('*.cpp'), *(ROOT / 'src').glob('*.h')]
+        sources = [*java_sources(), *source.glob('*.c'), *source.glob('*.cpp'), *source.glob('*.h')]
         write(output / 'manifest.json', dict(module_version='0.3.0', pangu_abi=MODULE_ABI, comsol_series='6.4', cudss_abi='0.7.1',
               files={name: sha(output / name) for name in shipped}, build_sdk_version=sdk_info(p)['version'],
-              source_sha256={str(f.relative_to(ROOT)): sha(f) for f in sources}))
+              source_sha256={'src/' + str(f.relative_to(source)): sha(f) for f in sources}))
         target, previous = module_dir(), pathlib.Path(temp) / 'previous-module'
         if target.exists():
             target.rename(previous)
@@ -322,7 +329,7 @@ def comsol_command(session, threads=None, backend='pangu'):
     return command, env, module_dir()
 
 
-def doctor(output=None):
+def doctor(output=None, native_output=True):
     p = sdk()
     verify(p)
     ensure_module()
@@ -332,7 +339,8 @@ def doctor(output=None):
                   stdout=result.stdout, stderr=result.stderr)
     if output:
         write(output, report)
-    print(result.stdout, end='')
+    if native_output:
+        print(result.stdout, end='')
     if report['status'] != 'completed':
         raise RuntimeError('Pangu/GPU/licence check failed: ' + result.stderr.strip())
     return report
@@ -372,6 +380,15 @@ def launch(args):
         info.update(global_options=global_options, command=command)
         write(session / 'session.json', info)
         print('Session:', session, flush=True)
+        if getattr(args, 'detach', False):
+            log = session / 'launcher.log'
+            with log.open('a') as stream:
+                process = subprocess.Popen(command, env=env, stdin=subprocess.DEVNULL, stdout=stream,
+                                           stderr=subprocess.STDOUT, start_new_session=True)
+            info.update(launcher_pid=process.pid, launcher_log=str(log))
+            write(session / 'session.json', info)
+            print(json.dumps({'started': True, 'pid': process.pid, 'session': str(session)}, ensure_ascii=False))
+            return 0
         return subprocess.call(command, env=env)
     destination = pathlib.Path(args.output).resolve() if args.output else session / 'configured.mph'
     if destination == source or destination.exists():

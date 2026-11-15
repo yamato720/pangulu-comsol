@@ -1,68 +1,74 @@
 # Pangu–COMSOL
 
-通过 cuDSS 接口，将 COMSOL 的稀疏直接线性求解接到 Pangu。COMSOL 继续负责物理场、网格、组装、外层迭代和后处理。
+Pangu–COMSOL 是带交互式终端界面的 CLI 应用，用于配置 COMSOL 接入、管理本地 SDK 包与原始许可、检查环境和启动求解。COMSOL 继续负责物理场、网格、组装、外层迭代和后处理。
 
-本仓库只保留正式模组源码、CLI、通用配置和客户说明。开发测试、基准、内部报告、运行数据与打包工具不纳入版本管理。厂商 SDK、原始许可和配套运行库另行提供。
+本仓库仅保留正式源码、安装定义、通用配置及客户说明；测试、内部报告、运行数据和打包工具不纳入 Git。厂商 SDK、许可和 CUDA 运行库另行提供。
 
-## 快速开始
+## 交互式终端应用
 
-```bash
-./pangu-comsol init
-./pangu-comsol package install /path/to/pangulu-release.tar.gz
-./pangu-comsol license add /path/to/customer.key
-./pangu-comsol doctor
-./start.sh
-```
-
-`start.sh` 保留为一键打开 GUI 的入口，等价于 `./pangu-comsol run`。也可指定模型：
+在源码目录直接启动：
 
 ```bash
-./start.sh /path/to/model.mph
-./pangu-comsol run /path/to/model.mph
+./pangu-comsol
 ```
 
-初始化会查找本机 COMSOL，只在首次创建配置时保存唯一发现的安装；已有配置不会被重置。也可显式指定：
+界面提供 **概览、配置、运行、SDK 包、授权** 五个页面，支持鼠标和键盘。F1–F5 切换页面，F6 刷新，F7 检查；Ctrl+C 取消当前操作，Ctrl+Q 退出。操作失败会保留界面，可查看详情后重试。
+
+耗时操作在后台执行。菜单提交 COMSOL 启动后，GUI 独立运行，可以继续使用菜单或退出终端应用。SDK 包仍由用户自行下载，界面只接收本地原始发行包，不内置下载网址。许可管理只导入和选择原始签名文件，实际授权由厂商 SDK 校验。
+
+## 安装应用
+
+需要 Python 3.12+。取得本仓库后，可通过 pipx 安装：
 
 ```bash
-./pangu-comsol init --comsol /path/to/multiphysics --cuda /path/to/cuda
+pipx install .
+pangu-comsol
 ```
 
-配套组件已预编译时可直接运行。仅有源码时，准备 gcc/g++、CUDA 12.9 开发头文件与库、COMSOL 6.4，然后执行 `./pangu-comsol build`。
+也可在自己的 Python 虚拟环境中执行 `python -m pip install .`。源码方式需要先安装应用依赖；本工作区若已创建 `runtime/app-env/`，根目录入口会使用该私有环境。
 
-## CLI
+安装后的应用将可变数据放在 `~/.local/share/pangu-comsol/`，或 `$XDG_DATA_HOME/pangu-comsol/`。程序代码安装在 Python 环境中，SDK、许可和本机配置与程序分开，CLI 升级不会替换它们。
+
+使用已有模组目录：
+
+```bash
+pangu-comsol --home /path/to/pangulu-comsol
+```
+
+`PANGU_COMSOL_HOME` 也可指定应用目录。源码根目录入口默认继续使用本目录。`start.sh` 保留为一键 GUI 入口，等价于 `./pangu-comsol run`。
+
+## 子命令
+
+原有子命令继续可用，适合自动化：
+
+```bash
+pangu-comsol init --comsol /path/to/multiphysics --cuda /path/to/cuda
+pangu-comsol package install /path/to/pangulu-release.tar.gz
+pangu-comsol license add /path/to/customer.key
+pangu-comsol doctor
+pangu-comsol run /path/to/model.mph
+```
 
 | 命令 | 用途 |
 |---|---|
+| `menu` | 显式打开终端界面；无参数且连接交互终端时也进入界面 |
 | `init` | 初始化本模块配置，保留已有选择 |
 | `config show` / `config set KEY VALUE` | 查看或修改本模块配置 |
-| `run [模型.mph]` | 启动 COMSOL GUI |
-| `package status` | 查看当前 SDK 和模组组件 |
-| `package install 本地包.tar.gz` | 校验并导入原始 SDK 包 |
-| `package update 本地包.tar.gz` | 校验后整体替换已有 SDK，保留许可与配置 |
-| `license add 文件.key` | 导入原始签名许可；续期替换同名文件可显式加 `--replace` |
-| `license list` / `license use 文件名...` / `license auto` | 列出、选择许可，或自动使用目录内全部许可 |
-| `status` / `doctor` | 查看安装状态或执行原生授权/GPU 检查 |
-| `inspect` / `configure` / `restore` | 查看、配置或恢复模型的求解器引用 |
+| `run [模型.mph]` | 打开 COMSOL；`--detach` 提交启动后立即返回 |
+| `package status/install/update` | 查看、导入或整体更新本地 SDK 包 |
+| `license add/list/use/auto` | 导入、列出、选择原始许可，或自动使用全部许可 |
+| `status` / `doctor` | 查看状态或执行原生授权与 GPU 检查 |
+| `build` | 从应用自带的正式源码构建接入组件 |
+| `inspect/configure/restore` | 查看、配置或恢复模型的求解器引用 |
 
-所有 SDK 包均由用户自行取得，CLI 只接收本地文件，不假设下载网址。也可关闭进程后手动删除 `pangu/` 内旧发行目录，再解压新原包，无需登记版本或 activate。
+## 运行文件
 
-## 布局
+应用目录中的 `pangu/` 保存一份完整原始 SDK，`licence/` 保存客户许可，`config/` 保存本机配置，`runtime/` 保存接入组件及 CUDA 运行库，`data/runs/` 保存模组运行记录。这些内容不随 Python 应用代码升级而删除。
 
-```text
-pangu-comsol          统一 CLI 入口
-start.sh              一键启动 GUI
-src/python/pangulu_comsol/
-  cli.py              命令、配置初始化和本地文件管理
-  runtime.py          COMSOL 启动、SDK 校验及组件构建
-src/                  C/C++、Java 正式源码和接口声明
-config/               通用模板与本机配置
-pangu/                一份完整的原始 SDK 解压目录
-licence/              客户原始签名许可
-runtime/              编译组件和 CUDA 运行库
-```
+配套接入组件已预编译时可直接运行。仅有源码时，需要 gcc/g++、CUDA 12.9 开发头文件与库、COMSOL 6.4，再执行 `pangu-comsol build`。安装后的应用也带有必要的正式构建源码，不依赖开发工作区。
 
-本机配置、SDK、许可和运行产物不进入 Git。启动器保留 COMSOL 默认或用户已有的偏好、临时、恢复、工作区及配置位置，不创建或改写 `.prefs`，线程数只在显式 `--threads` 时指定。
+GUI 中的 Pangu 选项由用户自行选择，不自动计算或保存。命令行指定模型时打开工作副本；GUI 内直接打开原文件后保存仍会写回原文件，需要保留原件时使用 Save As。
 
-GUI 在兼容求解器树中提供 Pangu 选项，用户自行选择；不自动计算或保存。命令行指定模型时打开工作副本，GUI 内直接打开原文件后保存仍会写入原文件，需要保留原件时使用 Save As。
+应用沿用 COMSOL 默认或用户已有的偏好、临时、恢复、工作区及配置位置，不创建或重写 `.prefs`。线程数仅在显式指定时覆盖本次运行。
 
 [使用说明](docs/usage.md) · [客户操作](docs/customer-README.txt) · [接入架构](docs/architecture.md) · [配置字段](config/README.md)

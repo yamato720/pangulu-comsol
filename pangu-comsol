@@ -2,9 +2,15 @@
 """Command-line entrypoint for this Pangu–COMSOL installation."""
 import pathlib
 import sys
+import os
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "src/python"))
+project = pathlib.Path(__file__).resolve().parent
+app_environment = project / "runtime/app-env"
+app_python = app_environment / "bin/python"
+if app_python.is_file() and pathlib.Path(sys.prefix).resolve() != app_environment.resolve():
+    os.execv(str(app_python), [str(app_python), "-B", str(pathlib.Path(__file__).resolve()), *sys.argv[1:]])
+sys.path.insert(0, str(project / "src/python"))
 from pangulu_comsol.cli import entrypoint
 
 raise SystemExit(entrypoint())
