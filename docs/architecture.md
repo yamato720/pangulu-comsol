@@ -16,7 +16,8 @@
 | GUI 选项 | `src/java/PanguDesktop.java` | `start`、空闲时的 `tick` |
 | 模型配置 | `src/java/PanguModule.java` | `targets`、`registerAll`、`apply`、`restore` |
 | cuDSS ABI | `src/bridge.cpp` | `cudssExecute`、矩阵暂存、`start_worker` / `rpc` |
-| Pangu 调用 | `src/worker.c` | `main`、`load_matrix`、`initialize_analysis`、`factor`、`phase` |
+| Pangu 数值后端 | `src/backend.c` | `load_matrix`、`initialize_analysis`、`factor`、`phase`、`pc_backend_dispatch` |
+| worker 通信 | `src/worker.c` | socket 接收、共享内存映射和后端生命周期 |
 
 `pangu/` 保存原始厂商 SDK，`licence/` 保存独立许可，`runtime/` 保存编译组件和运行依赖。安装时程序代码与这些可变运行文件分开。默认数据目录使用 XDG 用户数据位置，`--home` 可指定已有目录。正式 C/C++、Java 构建资源随 Python 应用安装，源码目录移走后仍可构建运行组件。
 
@@ -26,8 +27,8 @@
 2. COMSOL 的 `-cudssroot` 指向本模块 `runtime/module/`，从那里加载 `libcudss.so.0.7.1`。
 3. GUI 的 `PanguDesktop` 在空闲时用 `PanguModule.registerAll` 为所有兼容求解器操作添加标准 Direct 选项，保留原来的选择和已有解。用户在 Linear solver 中选择 Pangu 后使用 `cudss` 槽位。批处理则用 `PanguModule.apply` 显式选择指定节点。
 4. COMSOL 组装稀疏矩阵后调用 cuDSS 接口。`src/bridge.cpp` 接收这些调用，检查 CSR、标量类型、结构和求解阶段。
-5. bridge 通过 Unix socket 发送命令，通过共享内存传递矩阵、RHS 和解；独立 `pangulu_worker` 由适配库启动。
-6. `src/worker.c` 把矩阵转换为 Pangu 使用的布局，通过厂商公共 C API 调用分析、分解、重分解和回代。
+5. 默认 worker 模式由 bridge 通过 Unix socket 发送命令，通过共享内存传递矩阵、RHS 和解。direct 模式在进程内调用相同后端，使用可复用私有暂存区。
+6. `src/backend.c` 把矩阵转换为 Pangu 使用的布局，通过厂商公共 C API 调用分析、分解、重分解和回代；编译为两种模式共用的 `libpangu_backend.so`。
 7. 解向量写回共享内存，再由 bridge 返回 COMSOL。COMSOL 继续外层迭代、时间步和物理场恢复。
 
 ```mermaid
@@ -37,8 +38,10 @@ flowchart TD
     D --> J[src/java/PanguModule.java：标准节点配置]
     J --> C
     C --> B[src/bridge.cpp：cuDSS ABI]
-    B -->|socket 命令 / 共享内存数据| W[src/worker.c]
-    W --> S[原始 Pangu SDK]
+    B -->|worker：socket / 共享内存| W[src/worker.c]
+    W --> E[src/backend.c：共同数值后端]
+    B -->|direct：进程内调用| E
+    E --> S[原始 Pangu SDK]
     S --> G[GPU]
     G --> W
     W --> B
@@ -54,7 +57,8 @@ flowchart TD
 | `src/java/PanguDesktop.java` | 本会话的全局选项注册、GUI 空闲检测和状态记录 |
 | `src/java/PanguBatch.java` | COMSOL batch 入口 |
 | `src/bridge.cpp` | cuDSS ABI、矩阵检查、进程间传输 |
-| `src/worker.c` | 原始 Pangu API 调用、矩阵转换与求解状态 |
+| `src/backend.c`、`src/backend.h` | 两种执行方式共用的矩阵转换、求解状态及原始 Pangu API 调用 |
+| `src/worker.c` | 独立进程的通信、内存映射和后端生命周期 |
 | `src/protocol.h` | 命令和共享内存布局 |
 | `src/pattern_cache.h` | 稀疏结构转换和缓存检查 |
 | `src/native_license.c` | 原生 SDK / GPU / 许可检查 |
@@ -76,3 +80,5 @@ SDK 完整原件放在 `pangu/` 下唯一发行目录，许可放在根目录 `l
 终端页面通过独立子进程调用同一 CLI，不在界面线程执行 GPU 检查、解压或编译。COMSOL GUI 使用独立进程和会话日志，终端界面退出不依赖管道维持 GUI。
 
 可选 `test` 入口提供原生 cuDSS、直接转发和独立 worker 转发三个选择；测试数值核心均为原生 NVIDIA cuDSS。测试封装与内部 S 验收代码在单独提供的工具集中，本机位于忽略的 `dev/benchmarks/mycudss/`。`runtime/tests/mycudss/` 保存独立组件及原生库/构建产物哈希，生产 Pangu 组件继续位于 `runtime/module/`。
+
+Pangu 的 `--execution worker/direct` 与上述 NVIDIA 校准后端独立，测试页也提供 Pangu 及其执行方式。direct 通过 `dlopen` 在 COMSOL 进程中加载共同后端；不启动 worker。直接模式的启动兼容逻辑位于 `execution.py`，从当前厂商启动器生成仅省略 libjsig 的私有脚本；不写 COMSOL 安装或用户偏好。矩阵转换和向量暂存继续由共同后端处理。

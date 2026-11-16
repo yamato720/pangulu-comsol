@@ -12,6 +12,8 @@
 
 F8 打开可选测试页，手动选择原生 cuDSS、cuDSS 直接封装或 cuDSS worker 封装，可启动测试 GUI 或运行单独提供的 S 数值验收工具。`test status` 查看可用性，`test build [--source 目录]` 构建校准组件；组件位于 `runtime/tests/mycudss/`。测试源码、模型和验收资料单独提供，不随正式应用安装。
 
+测试页也可选择 Pangu，再选择 worker/direct 执行方式。Pangu 组件通过普通 `build` 构建；`test build` 仅构建可选 NVIDIA 校准组件。
+
 ```bash
 ./pangu-comsol test run --backend mycudss-direct /path/to/model.mph
 ./pangu-comsol test benchmark --backend mycudss-worker \
@@ -34,6 +36,20 @@ F8 打开可选测试页，手动选择原生 cuDSS、cuDSS 直接封装或 cuDS
 ./pangu-comsol doctor
 ./pangu-comsol discover
 ```
+
+Pangu 默认通过独立 worker 执行；可用以下开关选择同进程方式：
+
+```bash
+./start.sh --execution direct /path/to/model.mph
+./pangu-comsol configure /path/to/model.mph --target sol1/s1/fc1 \
+  --output /path/to/model-direct.mph --execution direct --run
+./pangu-comsol test benchmark --backend pangu --execution direct \
+  --project /path/to/study3-pangulu-s --frequencies all
+```
+
+执行方式作用于本次进程，模型中的 Pangu 节点保持标准 Direct 结构。两种方式使用同一份 `libpangu_backend.so`，保持相同矩阵处理及 SDK 数值策略；direct 使用进程内暂存区，向量暂存及输出有限性检查仍保留。
+
+直接模式在 `runtime/launchers/` 生成当前 COMSOL 启动脚本的私有副本，仅省略 `libjsig` 预加载，并用配置中的安装根目录启动。原始 SDK 在存在该预加载时会报告完整性检查失败；此模式不修改或跳过 SDK 授权。它改变了本次 JVM 信号预加载条件，不能据此保证任意插件或故障处理语义等价。默认 worker 使用原始 COMSOL 启动器。会话 `session.json` 记录执行方式、原脚本/私有脚本哈希及实际后端库路径。
 
 `config/runtime.json` 的 `comsol_root` 留空时自动搜索本机安装，路径未找到或有多份时填写具体安装目录。启动器不写 COMSOL 偏好文件，不传偏好、临时、恢复、工作区或配置目录的重定向参数；已有设置由 COMSOL 正常读取。默认继承线程配置及亲和性，只有显式 `--threads N` 才指定本次线程数。`licence_files=[]` 时自动读取 `licence/` 内全部 `.key` / `.license` 原件，以 SDK 要求的逗号分隔格式传入；授权始终由厂商库判断。
 

@@ -1,0 +1,200 @@
+#define _GNU_SOURCE
+#include "backend.h"
+#include "profile.h"
+#include "pattern_cache.h"
+#include <pangulu.h>
+#include <cuda_runtime_api.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <math.h>
+#include <errno.h>
+#include <limits.h>
+#include <stdarg.h>
+#include <fcntl.h>
+
+extern int pangulu_license_status(char *message, size_t capacity);
+
+typedef struct {double r,i;} Z;
+#define now() PGL_NOW()
+#if PGL_PROFILE
+static void write_log(const char *p,size_t bytes){ssize_t ignored=write(STDERR_FILENO,p,bytes);(void)ignored;}
+static void event(const char *name,const BridgeResponse *r){
+ char line[1400];int n=snprintf(line,sizeof(line),"PC_WORKER {\"event\":\"%s\",\"pid\":%d,\"backend\":\"pangulu\",\"status\":%d,\"pangulu_status\":%d,\"cuda_status\":%d,\"n\":%llu,\"nnz\":%llu,\"canonical_nnz\":%llu,\"analysis_seconds\":%.9g,\"factor_seconds\":%.9g,\"solve_seconds\":%.9g,\"conversion_seconds\":%.9g,\"value_update_seconds\":%.9g,\"pattern_seconds\":%.9g,\"release_seconds\":%.9g,\"free_before_bytes\":%llu,\"free_bytes\":%llu}\n",name,getpid(),r->status,r->pangulu_status,r->cuda_status,(unsigned long long)r->n,(unsigned long long)r->nnz,(unsigned long long)r->canonical_nnz,r->analysis_seconds,r->factor_seconds,r->solve_seconds,r->conversion_seconds,r->value_update_seconds,r->pattern_seconds,r->release_seconds,(unsigned long long)r->free_before_bytes,(unsigned long long)r->free_bytes);if(n>0)write_log(line,(size_t)n<sizeof(line)?(size_t)n:sizeof(line)-1);
+}
+
+#else
+#define event(...) ((void)0)
+#endif
+struct PanguBackend {
+ pangulu_handle_t h;pangulu_matrix_t A;uint64_t n,nnz,*ptr;int32_t *idx;void *val;size_t item;
+ int analyzed,factored,value_type,numeric_count,device,ordering;void *db,*dx;size_t dense_bytes;
+ uint64_t epoch,input_n,input_nnz,*csr_to_canonical;
+ int input_type,input_device,matrix_type,matrix_view;
+ uint64_t union_anchor_nnz;
+};
+typedef struct PanguBackend State;
+
+/* Caller-owned ptr/idx/values remain alive until both descriptors are gone. */
+static void release_gpu(State *s){
+ if(s->A)pangulu_matrix_destroy(s->A);if(s->h)pangulu_destroy(s->h);
+ if(s->db)cudaFree(s->db);if(s->dx)cudaFree(s->dx);
+ s->A=NULL;s->h=NULL;s->db=NULL;s->dx=NULL;s->dense_bytes=0;
+ s->analyzed=0;s->factored=0;s->numeric_count=0;
+}
+static void clear(State *s){
+ release_gpu(s);free(s->ptr);free(s->idx);free(s->val);free(s->csr_to_canonical);memset(s,0,sizeof(*s));
+}
+static int union_enabled(void){return 0;}
+static uint64_t union_limit(uint64_t anchor){
+ uint64_t limit=anchor+anchor/20; /* bounded default: at most 5% extra positions */
+ const char*p=getenv("PGL_BRIDGE_UNION_MAX_NNZ");if(p&&*p){char*end=NULL;unsigned long long x=strtoull(p,&end,10);if(end&&!*end&&x>0)limit=(uint64_t)x;}
+ return limit>INT32_MAX?INT32_MAX:limit;
+}
+static uint64_t count_new_positions(uint64_t n,const uint64_t*oldp,const int32_t*oldi,const uint64_t*p,const int32_t*i){
+ uint64_t added=0;for(uint64_t col=0;col<n;col++){uint64_t old=oldp[col];for(uint64_t k=p[col];k<p[col+1];k++){while(old<oldp[col+1]&&oldi[old]<i[k])old++;if(old==oldp[col+1]||oldi[old]!=i[k])added++;}}return added;
+}
+static int values_equal(const State*s,const BridgeRequest*q,const void*v){
+ if(!s->val||!s->csr_to_canonical)return 0;
+ for(uint64_t k=0;k<q->nnz;k++)if(memcmp((const char*)s->val+s->csr_to_canonical[k]*s->item,(const char*)v+k*s->item,s->item))return 0;
+ return 1;
+}
+static void scatter_values(State*s,const BridgeRequest*q,const void*v){
+ if(s->nnz!=q->nnz)memset(s->val,0,(size_t)s->nnz*s->item);
+ for(uint64_t k=0;k<q->nnz;k++)memcpy((char*)s->val+s->csr_to_canonical[k]*s->item,(const char*)v+k*s->item,s->item);
+}
+static int phase(State*s,pangulu_phase_t p,double*seconds,BridgeResponse*r,pangulu_vector_t x,pangulu_vector_t b){
+ PGL_DETAIL(uint64_t begin=pgl_profile_ns();)
+ r->pangulu_status=(int)pangulu_execute(s->h,p,s->A,x,b);
+ PGL_DETAIL(uint64_t returned=pgl_profile_ns();)
+ r->cuda_status=(int)cudaDeviceSynchronize();
+#if PGL_PROFILE
+ uint64_t end=pgl_profile_ns();*seconds+=(end-begin)*1e-9;
+ fprintf(stderr,"PGL_WORKER_PHASE {\"epoch\":%llu,\"phase\":%d,\"begin_ns\":%llu,\"end_ns\":%llu,\"api_seconds\":%.9g,\"completion_sync_seconds\":%.9g,\"pangulu_status\":%d,\"cuda_status\":%d}\n",(unsigned long long)s->epoch,(int)p,(unsigned long long)begin,(unsigned long long)end,(returned-begin)*1e-9,(end-returned)*1e-9,r->pangulu_status,r->cuda_status);
+#else
+ (void)seconds;
+#endif
+ return r->pangulu_status||r->cuda_status?-1:0;
+}
+static int initialize_analysis(State*s,const BridgeRequest*q,BridgeResponse*r){
+ 
+ int gpu=0;const char*g=getenv("PC_LICENSED_GPU_INDEX");if(g)gpu=atoi(g);
+ r->pangulu_status=(int)pangulu_create(gpu,&s->h);
+ if(r->pangulu_status){char message[2048]={0};int status=pangulu_license_status(message,sizeof(message)-1);fprintf(stderr,"PGL_LICENSE_ERROR status=%d message=%s\n",status,message);return -1;}
+ int device=-1;cudaGetDevice(&device);if(device!=q->device){r->status=4;return -1;}s->device=device;
+ int ordering=1;const char*o=getenv("PC_REORDERING");if(o&&*o){char*end=NULL;long x=strtol(o,&end,10);if(!end||*end||(x!=0&&x!=1)){r->status=3;return -1;}ordering=(int)x;}
+ s->ordering=ordering;
+ r->pangulu_status=(int)pangulu_config_set(s->h,PANGULU_REORDERING_METHOD,ordering?L1:L0);if(r->pangulu_status)return -1;
+ r->pangulu_status=(int)pangulu_config_set(s->h,PANGULU_REUSE_LEVEL,q->reuse?L2:L1);if(r->pangulu_status)return -1;
+ pangulu_matrix_type_t types[]={PANGULU_MATRIX_GENERAL,PANGULU_MATRIX_SYMMETRIC,PANGULU_MATRIX_HERMITIAN,PANGULU_MATRIX_SPD,PANGULU_MATRIX_HPD};
+ r->pangulu_status=(int)pangulu_matrix_create_sym(&s->A,PANGULU_MATRIX_LAYOUT_CSC,(int64_t)s->n,(int64_t)s->n,(int64_t)s->nnz,1,s->ptr,s->idx,s->val,PANGULU_R_64I,PANGULU_R_32I,s->value_type==5?PANGULU_C_64F:PANGULU_R_64F,types[q->matrix_type],(pangulu_matrix_view_t)q->matrix_view,PANGULU_MEMORY_HOST);if(r->pangulu_status)return -1;
+ int failed=phase(s,PANGULU_PHASE_ANALYSIS,&r->analysis_seconds,r,NULL,NULL);
+ if(failed)return -1;
+ s->analyzed=1;s->factored=0;s->numeric_count=0;return 0;
+}
+/* A failed numeric call is returned directly. No input backup or fresh retry. */
+static int factor(State*s,BridgeResponse*r){
+ pangulu_phase_t requested=s->numeric_count?PANGULU_PHASE_REFACTORISATION:PANGULU_PHASE_NUMERIC_FACTORISATION;
+ s->factored=0;
+ if(phase(s,requested,&r->factor_seconds,r,NULL,NULL))return -1;
+ s->factored=1;s->numeric_count++;return 0;
+}
+#if PGL_PROFILE
+static void pattern_event(const State*s,const BridgeRequest*q,const BridgeResponse*r,int epoch_hit,int backend_reused,int grew,int cap_reset,uint64_t added){
+ char b[1200];int z=snprintf(b,sizeof(b),"PGL_BRIDGE_PATTERN {\"pid\":%d,\"command\":%llu,\"structure_epoch\":%llu,\"policy\":\"%s\",\"reuse_requested\":%d,\"reordering_method\":%d,\"conversion_cache_hit\":%s,\"analysis_state_reused\":%s,\"pattern_grew\":%s,\"union_cap_reset\":%s,\"n\":%llu,\"input_nnz\":%llu,\"canonical_nnz\":%llu,\"added_positions\":%llu,\"padding_positions\":%llu,\"conversion_seconds\":%.9g,\"pattern_seconds\":%.9g,\"value_update_seconds\":%.9g,\"release_seconds\":%.9g}\n",getpid(),(unsigned long long)q->command,(unsigned long long)q->structure_epoch,union_enabled()?"union":"strict",q->reuse,s->ordering,epoch_hit?"true":"false",backend_reused?"true":"false",grew?"true":"false",cap_reset?"true":"false",(unsigned long long)s->n,(unsigned long long)q->nnz,(unsigned long long)s->nnz,(unsigned long long)added,(unsigned long long)(s->nnz-q->nnz),r->conversion_seconds,r->pattern_seconds,r->value_update_seconds,r->release_seconds);if(z>0)write_log(b,(size_t)z<sizeof(b)?(size_t)z:sizeof(b)-1);
+}
+
+#else
+#define pattern_event(...) ((void)0)
+#endif
+static int load_matrix(State*s,const BridgeRequest*q,const void*memory,BridgeResponse*r){
+ const uint64_t*rp=(const uint64_t*)((const char*)memory+q->ptr_offset);const int32_t*ci=(const int32_t*)((const char*)memory+q->idx_offset);const void*v=(const char*)memory+q->val_offset;
+ size_t item=q->value_type==5?16:8;double t=now();
+ if(union_enabled()&&!q->reuse){r->status=4;return -1;} /* explicit L2 required */
+ int epoch_hit=q->structure_epoch&&s->csr_to_canonical&&s->epoch==q->structure_epoch&&s->input_n==q->n&&s->input_nnz==q->nnz&&s->input_type==(int)q->value_type&&s->input_device==q->device;
+ if(epoch_hit){
+  int reuse=s->analyzed&&(q->reuse||(!s->factored&&values_equal(s,q,v)));
+  if(!reuse){t=now();release_gpu(s);PGL_TIME_ADD(r->release_seconds,t);}
+  t=now();scatter_values(s,q,v);PGL_TIME_ADD(r->value_update_seconds,t);s->factored=0;r->canonical_nnz=s->nnz;
+  int result=reuse?1:initialize_analysis(s,q,r);pattern_event(s,q,r,1,reuse,0,0,0);return result;
+ }
+ t=now();uint64_t*ptr=calloc((size_t)q->n+1,8);int32_t*idx=malloc((size_t)q->nnz*4);uint64_t*to_csc=malloc((size_t)q->nnz*8),*next=malloc((size_t)q->n*8);
+ if(!ptr||!idx||!to_csc||!next){free(ptr);free(idx);free(to_csc);free(next);r->status=2;return -1;}
+ if(rp[0]||rp[q->n]!=q->nnz){r->status=3;goto bad;}
+ for(uint64_t row=0;row<q->n;row++){if(rp[row]>rp[row+1]||rp[row+1]>q->nnz){r->status=3;goto bad;}for(uint64_t k=rp[row];k<rp[row+1];k++){if(ci[k]<0||(uint64_t)ci[k]>=q->n){r->status=3;goto bad;}ptr[(uint64_t)ci[k]+1]++;}}
+ for(uint64_t col=0;col<q->n;col++)ptr[col+1]+=ptr[col];memcpy(next,ptr,(size_t)q->n*8);
+ for(uint64_t row=0;row<q->n;row++)for(uint64_t k=rp[row];k<rp[row+1];k++){uint64_t z=next[ci[k]]++;idx[z]=(int32_t)row;to_csc[k]=z;}
+ free(next);next=NULL;PGL_TIME_ADD(r->conversion_seconds,t);
+ if(pc_validate(q->n,ptr,idx)){r->status=3;goto bad;}
+ {
+  t=now();int compatible=s->n==q->n&&s->value_type==(int)q->value_type&&s->device==q->device;
+  PcUnion u={0};int cap_reset=0;
+  if(union_enabled()&&compatible&&s->ptr){
+   int status=pc_pattern_union_validated(q->n,s->ptr,s->idx,ptr,idx,union_limit(s->union_anchor_nnz),&u);
+   if(status==PC_TOO_LARGE){cap_reset=1;status=pc_pattern_union_validated(q->n,NULL,NULL,ptr,idx,INT32_MAX,&u);}
+   if(status){r->status=status==PC_ALLOC_FAILED?2:3;goto bad;}
+  }else{
+   int same=compatible&&s->ptr&&s->nnz==q->nnz&&!memcmp(s->ptr,ptr,((size_t)q->n+1)*8)&&!memcmp(s->idx,idx,(size_t)q->nnz*4);
+   if(same){u.n=q->n;u.nnz=q->nnz;u.input_nnz=q->nnz;u.ptr=s->ptr;u.idx=s->idx;}
+   else{u.n=q->n;u.nnz=q->nnz;u.input_nnz=q->nnz;u.added_positions=compatible&&s->ptr?count_new_positions(q->n,s->ptr,s->idx,ptr,idx):q->nnz;u.grew=1;u.own_arrays=1;u.ptr=ptr;u.idx=idx;ptr=NULL;idx=NULL;}
+  }
+  /* Translate CSR positions through the native CSC into canonical CSC. */
+  const uint64_t*np=ptr?ptr:u.ptr;const int32_t*ni=idx?idx:u.idx;
+  uint64_t*to_union=malloc((size_t)q->nnz*8);
+  if(!to_union){pc_release(&u);r->status=2;goto bad;}
+  for(uint64_t col=0;col<q->n;col++){
+   uint64_t z=u.ptr[col];for(uint64_t k=np[col];k<np[col+1];k++){while(z<u.ptr[col+1]&&u.idx[z]<ni[k])z++;if(z==u.ptr[col+1]||u.idx[z]!=ni[k]){free(to_union);pc_release(&u);r->status=3;goto bad;}to_union[k]=z;}
+  }
+  for(uint64_t k=0;k<q->nnz;k++)to_csc[k]=to_union[to_csc[k]];free(to_union);
+  PGL_TIME_ADD(r->pattern_seconds,t);
+  int same_pattern=compatible&&!u.grew;
+  int same_values=same_pattern;
+  if(same_values&&!q->reuse&&!s->factored){for(uint64_t k=0;k<q->nnz;k++)if(memcmp((const char*)s->val+to_csc[k]*item,(const char*)v+k*item,item)){same_values=0;break;}}
+  int reused=s->analyzed&&same_pattern&&(q->reuse||(!s->factored&&same_values));
+  if(!reused){t=now();release_gpu(s);PGL_TIME_ADD(r->release_seconds,t);}
+  if(u.grew){
+   void*newval=calloc((size_t)u.nnz,item);if(!newval){pc_release(&u);r->status=2;goto bad;}
+   free(s->ptr);free(s->idx);free(s->val);s->ptr=(uint64_t*)u.ptr;s->idx=(int32_t*)u.idx;s->val=newval;s->nnz=u.nnz;s->n=q->n;s->item=item;s->value_type=(int)q->value_type;s->device=q->device;u.own_arrays=0;
+   if(!compatible||!s->union_anchor_nnz||cap_reset)s->union_anchor_nnz=q->nnz;
+  }
+  free(s->csr_to_canonical);s->csr_to_canonical=to_csc;to_csc=NULL;s->epoch=q->structure_epoch;s->input_n=q->n;s->input_nnz=q->nnz;s->input_type=(int)q->value_type;s->input_device=q->device;
+  t=now();scatter_values(s,q,v);PGL_TIME_ADD(r->value_update_seconds,t);s->factored=0;r->canonical_nnz=s->nnz;
+  uint64_t added=u.added_positions;int grew=u.grew;pc_release(&u);free(ptr);free(idx);
+  int result=reused?1:initialize_analysis(s,q,r);pattern_event(s,q,r,0,reused,grew,cap_reset,added);return result;
+ }
+bad:free(ptr);free(idx);free(to_csc);free(next);return -1;
+}
+
+PanguBackend *pc_backend_create(void){return calloc(1,sizeof(State));}
+void pc_backend_destroy(PanguBackend *state){if(state){clear(state);free(state);}}
+int pc_backend_dispatch(PanguBackend *s,const BridgeRequest *q,BridgeResponse *r,void *memory){
+ memset(r,0,sizeof(*r));r->magic=PGL_BRIDGE_MAGIC;
+ if(!s||!q||q->magic!=PGL_BRIDGE_MAGIC){r->status=3;return r->status;}
+ r->n=q->n;r->nnz=q->nnz;
+ if(q->command==BR_CLOSE){clear(s);return 0;}
+  if(!memory||q->n==0||q->n>INT32_MAX||q->nnz==0||q->nnz>INT32_MAX||(q->nrhs<1||q->nrhs>65536)||q->matrix_type<0||q->matrix_type>4||q->matrix_view<0||q->matrix_view>2||(q->value_type!=1&&q->value_type!=5)){r->status=3;goto done;}
+  if(q->ptr_offset+(q->n+1)*8>q->total_bytes||q->idx_offset+q->nnz*4>q->total_bytes||q->val_offset+q->nnz*(q->value_type==5?16:8)>q->total_bytes||q->b_offset+q->n*q->nrhs*(q->value_type==5?16:8)>q->total_bytes||q->x_offset+q->n*q->nrhs*(q->value_type==5?16:8)>q->total_bytes||q->total_bytes>UINT64_C(20)*1024*1024*1024){r->status=3;goto done;}
+ PGL_DETAIL({size_t f=0,t=0;if(cudaMemGetInfo(&f,&t)==cudaSuccess)r->free_before_bytes=f;})
+  if(q->command==BR_ANALYZE||q->command==BR_FACTOR){
+   if(s->h&&(s->matrix_type!=q->matrix_type||s->matrix_view!=q->matrix_view))clear(s);
+   s->matrix_type=q->matrix_type;s->matrix_view=q->matrix_view;
+   int reused=load_matrix(s,q,memory,r);if(reused<0){if(!r->status)r->status=5;goto done;}
+   if(q->command==BR_FACTOR){if(factor(s,r)){if(!r->status)r->status=5;goto done;}}
+  }else if(q->command==BR_SOLVE){
+   if(!s->factored||s->n!=q->n||s->value_type!=(int)q->value_type){r->status=1;goto done;}
+   size_t bytes=(size_t)s->n*s->item*q->nrhs;if(bytes!=s->dense_bytes){if(s->db)cudaFree(s->db);if(s->dx)cudaFree(s->dx);s->db=s->dx=NULL;r->cuda_status=(int)cudaMalloc(&s->db,bytes);if(!r->cuda_status)r->cuda_status=(int)cudaMalloc(&s->dx,bytes);if(r->cuda_status){r->status=2;goto done;}s->dense_bytes=bytes;}
+   r->cuda_status=(int)cudaMemcpy(s->db,(char*)memory+q->b_offset,bytes,cudaMemcpyHostToDevice);if(!r->cuda_status)r->cuda_status=(int)cudaMemset(s->dx,0,bytes);if(!r->cuda_status)r->cuda_status=(int)cudaDeviceSynchronize();if(r->cuda_status){r->status=5;goto done;}
+   pangulu_vector_t b=NULL,x=NULL;r->pangulu_status=(int)pangulu_multiple_vector_create(&b,(int64_t)s->n,(int64_t)q->nrhs,(int64_t)s->n,s->db,s->value_type==5?PANGULU_C_64F:PANGULU_R_64F,PANGULU_MEMORY_DEVICE);if(!r->pangulu_status)r->pangulu_status=(int)pangulu_multiple_vector_create(&x,(int64_t)s->n,(int64_t)q->nrhs,(int64_t)s->n,s->dx,s->value_type==5?PANGULU_C_64F:PANGULU_R_64F,PANGULU_MEMORY_DEVICE);
+   if(!r->pangulu_status)phase(s,PANGULU_PHASE_SOLVE,&r->solve_seconds,r,x,b);
+   if(x)pangulu_vector_destroy(x);if(b)pangulu_vector_destroy(b);
+   if(r->pangulu_status||r->cuda_status){r->status=5;goto done;}
+   r->cuda_status=(int)cudaMemcpy((char*)memory+q->x_offset,s->dx,bytes,cudaMemcpyDeviceToHost);if(r->cuda_status){r->status=5;goto done;}
+   const double*out=(const double*)((char*)memory+q->x_offset);for(size_t i=0;i<bytes/8;i++)if(!isfinite(out[i])){r->status=5;break;}
+  }else r->status=4;
+done:
+  r->canonical_nnz=s->nnz;r->stage=(int32_t)q->command;PGL_DETAIL({size_t f=0,t=0;if(cudaMemGetInfo(&f,&t)==cudaSuccess){r->free_bytes=f;r->total_bytes=t;}})
+  event(q->command==BR_ANALYZE?"analysis":q->command==BR_FACTOR?"factorization":"solve",r);
+ return r->status;
+}

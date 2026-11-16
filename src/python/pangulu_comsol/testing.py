@@ -8,7 +8,7 @@ import sys
 import tempfile
 from . import runtime as core
 
-BACKENDS = {'cudss': '原生 NVIDIA cuDSS', 'mycudss-direct': 'cuDSS 直接封装', 'mycudss-worker': 'cuDSS worker 封装'}
+BACKENDS = {'cudss': '原生 NVIDIA cuDSS', 'mycudss-direct': 'cuDSS 直接封装', 'mycudss-worker': 'cuDSS worker 封装','pangu':'Pangu'}
 
 
 def directory():
@@ -59,8 +59,11 @@ def status():
         verify();test_error=''
     except (OSError,ValueError,KeyError) as error:
         test_error=str(error)
-    return {'directory':str(directory()),'backends':[{'id':name,'label':label,'available':not (native_error if name=='cudss' else test_error),
-             'message':native_error if name=='cudss' else test_error} for name,label in BACKENDS.items()], 'native_library':native}
+    try:core.ensure_module();pangu_error=''
+    except (OSError,ValueError,KeyError) as error:pangu_error=str(error)
+    errors={'cudss':native_error,'pangu':pangu_error,'mycudss-direct':test_error,'mycudss-worker':test_error}
+    return {'directory':str(directory()),'pangu_directory':str(core.module_dir()),'backends':[{'id':name,'label':label,'available':not errors[name],
+             'message':errors[name]} for name,label in BACKENDS.items()], 'native_library':native}
 
 
 def build(source=None):
@@ -119,8 +122,10 @@ def environment(backend,threads=None):
 def benchmark(args):
     if not 1<=args.threads<=len(os.sched_getaffinity(0)):raise ValueError('threads exceeds available CPU affinity')
     if not 1<=args.repeat<=10:raise ValueError('repeat must be 1..10')
+    if args.execution is not None and args.backend!='pangu':raise ValueError('Execution mode applies only to Pangu')
     script=sources()/'benchmark.py'
     if not script.is_file():raise ValueError('Optional S benchmark tools are not installed')
     command=[sys.executable,'-B',str(script),'--backend',args.backend,'--project',str(args.project.expanduser().resolve()),
              '--frequencies',args.frequencies,'--threads',str(args.threads),'--repeat',str(args.repeat)]
+    if args.execution is not None:command+=['--execution',args.execution]
     return subprocess.call(command,env=dict(os.environ,PANGU_COMSOL_HOME=str(core.ROOT)))

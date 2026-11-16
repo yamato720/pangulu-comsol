@@ -154,6 +154,9 @@ class PanguComsolApp(App[int]):
                     yield Input(placeholder="/path/to/model.mph", id="model-path")
                     yield Label("求解后端", classes="field-label")
                     yield Select([("Pangu", "pangu"), ("NVIDIA cuDSS", "cudss")], value="pangu", allow_blank=False, id="backend")
+                    yield Label("Pangu 执行方式",classes="field-label")
+                    yield Select([("worker 独立进程","worker"),("直接封装，同进程","direct")],value="worker",allow_blank=False,id="execution")
+                    yield Static("直接模式为本次启动取消 libjsig 预加载，使用同一份原始 SDK 与授权。",classes="helper")
                     yield Label("线程数（留空继承原有设置）", classes="field-label")
                     yield Input(placeholder="继承原有设置", id="threads")
                     yield Static("COMSOL 会独立运行，启动提交后可继续使用菜单。带模型路径时打开工作副本；在 COMSOL 中选择 Pangu 后计算。", classes="helper")
@@ -190,14 +193,16 @@ class PanguComsolApp(App[int]):
                     yield Static("正在读取可选测试组件…",id="test-state",classes="card")
                     yield Label("测试后端",classes="field-label")
                     yield Select([(label,name) for name,label in testing.BACKENDS.items()],value="cudss",allow_blank=False,id="test-backend")
+                    yield Label("Pangu 执行方式",classes="field-label")
+                    yield Select([("worker 独立进程","worker"),("直接封装，同进程","direct")],value="worker",allow_blank=False,id="test-execution",disabled=True)
                     yield Label("GUI 模型文件（可留空）",classes="field-label")
                     yield Input(placeholder="/path/to/model.mph",id="test-model-path")
                     yield Label("线程数（GUI 留空继承，数值测试留空用 8）",classes="field-label")
                     yield Input(placeholder="继承原设置 / 数值测试 8",id="test-threads")
-                    yield Static("三个后端均使用原生 NVIDIA cuDSS 数值核心。GUI 中选择 Direct/cuDSS 后计算；模型路径打开工作副本。",classes="helper")
+                    yield Static("cuDSS 封装调用原生 NVIDIA 核心；Pangu 可选择执行方式。GUI 中选择对应 Direct 节点，模型路径打开工作副本。",classes="helper")
                     with Horizontal(classes="actions"):
                         yield ActionButton("启动测试 GUI",id="launch-test",classes="operation-button")
-                        yield ActionButton("构建测试组件",id="build-tests",classes="operation-button")
+                        yield ActionButton("构建 cuDSS 校准组件",id="build-tests",classes="operation-button")
                     yield Label("S 档验收工程目录",classes="field-label")
                     yield Input(placeholder="/path/to/study3-pangulu-s",id="test-project-path")
                     yield Select([("20 kHz 单频","20000"),("完整 59 频点","all")],value="20000",allow_blank=False,id="test-frequencies")
@@ -213,8 +218,18 @@ class PanguComsolApp(App[int]):
         for scroll in self.query(VerticalScroll):
             scroll.can_focus = False
         self.query_one("#activity", RichLog).can_focus = False
+        self.update_execution_choices()
         self.refresh_state(reload_forms=True)
         self.call_after_refresh(self.focus_page)
+
+    def update_execution_choices(self):
+        self.query_one('#execution',Select).disabled=self.busy or self.query_one('#backend',Select).value!='pangu'
+        self.query_one('#test-execution',Select).disabled=self.busy or self.query_one('#test-backend',Select).value!='pangu'
+
+    @on(Select.Changed,'#backend')
+    @on(Select.Changed,'#test-backend')
+    def backend_changed(self,event):
+        self.update_execution_choices()
 
     def focus_page(self, name=None):
         pane=self.query_one('#'+(name or self.query_one('#pages',TabbedContent).active),TabPane)
@@ -313,7 +328,7 @@ class PanguComsolApp(App[int]):
         sdk_text = f"Pangu SDK：{sdk_label}\n{sdk.get('path', sdk.get('message', ''))}\n运行组件：{module_label}"
         self.query_one("#sdk-state", Static).update(Text(sdk_text))
         tests=state["tests"]
-        self.query_one("#test-state",Static).update(Text("可选测试组件："+tests["directory"]+"\n"+"\n".join(
+        self.query_one("#test-state",Static).update(Text("cuDSS 校准组件："+tests["directory"]+"\nPangu 运行组件："+tests['pangu_directory']+"\n"+"\n".join(
             item["label"]+"："+("可用" if item["available"] else "未就绪") for item in tests["backends"])))
         choices = self.query_one("#licence-list", SelectionList)
         choices.clear_options()
@@ -379,6 +394,7 @@ class PanguComsolApp(App[int]):
                 self.request_operation(["license", "auto"], "自动选择许可")
             elif action == "launch-gui":
                 args = ["run", "--detach", "--backend", str(self.query_one("#backend", Select).value)]
+                if self.query_one('#backend',Select).value=='pangu':args+=['--execution',str(self.query_one('#execution',Select).value)]
                 count = self.query_one("#threads", Input).value.strip()
                 if count:
                     if not count.isdecimal() or int(count) < 1:
@@ -393,6 +409,7 @@ class PanguComsolApp(App[int]):
                 backend=str(self.query_one("#test-backend",Select).value)
                 verb="run" if action=="launch-test" else "benchmark"
                 args=["test",verb,"--backend",backend]
+                if backend=='pangu':args+=['--execution',str(self.query_one('#test-execution',Select).value)]
                 count=self.query_one("#test-threads",Input).value.strip()
                 if count:
                     if not count.isdecimal() or int(count)<1:raise ValueError("线程数须为正整数，或留空")
@@ -479,3 +496,4 @@ class PanguComsolApp(App[int]):
                 button.disabled = False
             for field in self.query("Input, Switch, Select, SelectionList"):
                 field.disabled = False
+            self.update_execution_choices()

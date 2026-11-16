@@ -200,6 +200,7 @@ def parser():
     item.add_argument('input', nargs='?', help='Optional MPH model')
     item.add_argument('--threads', type=int)
     item.add_argument('--backend', choices=['pangu', 'cudss'], default='pangu')
+    item.add_argument('--execution',choices=['worker','direct'],help='Pangu execution; default worker. Direct uses a session launcher without libjsig preloading')
     item.add_argument('--detach', action='store_true', help='Start GUI in its own session and return immediately')
     package = commands.add_parser('package', help='Manage manually downloaded, local Pangu SDK archives').add_subparsers(dest='action', required=True)
     package.add_parser('status')
@@ -225,10 +226,12 @@ def parser():
     item=test.add_parser('run',help='Open GUI using a selected test backend')
     item.add_argument('input',nargs='?',help='Optional MPH model; opens a working copy')
     item.add_argument('--backend',choices=list(testing.BACKENDS),default='cudss')
+    item.add_argument('--execution',choices=['worker','direct'],help='Pangu execution mode only')
     item.add_argument('--threads',type=int)
     item.add_argument('--detach',action='store_true')
     item=test.add_parser('benchmark',help='Run the separately provided S numeric acceptance tools')
     item.add_argument('--backend',choices=list(testing.BACKENDS),default='cudss')
+    item.add_argument('--execution',choices=['worker','direct'],help='Pangu execution mode only')
     item.add_argument('--project',type=pathlib.Path,required=True)
     item.add_argument('--frequencies',choices=['20000','all'],default='20000')
     item.add_argument('--threads',type=int,default=8)
@@ -240,6 +243,7 @@ def parser():
         item.add_argument('--target', default='auto')
         item.add_argument('--run', action='store_true')
         item.add_argument('--threads', type=int)
+        item.add_argument('--execution',choices=['worker','direct'],help='Pangu execution mode; default worker')
     return app
 
 

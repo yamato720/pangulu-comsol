@@ -193,14 +193,16 @@ def base_env(threads=None):
     return env
 
 
-def clean_env(p=None, threads=None):
+def clean_env(p=None, threads=None, execution='worker'):
+    if execution not in {'worker','direct'}:raise ValueError('Pangu execution must be worker or direct')
     c = cfg()
     p = p or sdk()
     env = base_env(threads)
     libraries = str(p / 'lib') + ':' + str(pathlib.Path(c['cuda_root']) / 'lib64')
     env.update(PANGULU_LICENSE_PATHS=','.join(map(str, licence_paths())), PC_LICENSED_GPU_INDEX=str(c['licensed_gpu_index']),
                PC_WORKER=str(module_dir() / 'pangulu_worker'), PC_WORKER_LIBRARY_PATH=libraries, LD_LIBRARY_PATH=libraries,
-               PC_REORDERING=str(c['ordering']), PC_REUSE='refactor', PC_COMSOL_DIAGNOSTICS='1', PC_SESSION='1', PC_APP_ROOT=str(ROOT))
+               PC_REORDERING=str(c['ordering']), PC_REUSE='refactor', PC_COMSOL_DIAGNOSTICS='1', PC_SESSION='1', PC_APP_ROOT=str(ROOT),
+               PC_EXECUTION=execution, PC_BACKEND=str(module_dir()/'libpangu_backend.so'))
     return env
 
 
@@ -252,18 +254,26 @@ def build():
         native_libs = [*libraries, '-Wl,--no-as-needed', '-lpangulu', '-lcudart', '-lcublas', '-lcublasLt', '-ldl', '-lm']
         commands = [
             ['gcc', '-O2', '-std=gnu11', *includes, str(source / 'native_license.c'), '-o', str(output / 'native_license'), *native_libs],
-            ['gcc', '-O2', '-std=gnu11', '-DPGL_PROFILE=0', *includes, str(source / 'worker.c'), '-o', str(output / 'pangulu_worker'), *native_libs, '-pthread'],
+            ['gcc', '-O2', '-std=gnu11', '-shared', '-fPIC', '-DPGL_PROFILE=0', *includes, str(source / 'backend.c'), '-o', str(output / 'libpangu_backend.so'), *native_libs, '-pthread','-Wl,-soname,libpangu_backend.so'],
+            ['gcc', '-O2', '-std=gnu11', *includes, str(source / 'worker.c'), '-o', str(output / 'pangulu_worker'), '-L'+str(output),'-lpangu_backend','-Wl,-rpath,$ORIGIN',
+             '-Wl,-rpath-link,'+str(p/'lib')+':'+str(cuda/'lib64'),'-pthread'],
             ['g++', '-O2', '-std=c++17', '-shared', '-fPIC', '-DPGL_PROFILE=0', *includes, '-I' + str(source / 'include/cudss'),
-             str(source / 'bridge.cpp'), '-o', str(output / 'libcudss.so.0.7.1'), *libraries, '-lcudart', '-Wl,-soname,libcudss.so.0']]
+             str(source / 'bridge.cpp'), '-o', str(output / 'libcudss.so.0.7.1'), *libraries, '-lcudart','-ldl', '-Wl,-soname,libcudss.so.0']]
         with (output / 'build.log').open('w') as log:
-            for command in commands:
-                subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
+            try:
+                for command in commands:
+                    log.write(repr(command)+'\n');log.flush()
+                    subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
+            except subprocess.CalledProcessError as error:
+                log.flush();failed=ROOT/'data/runs'/('component-build_'+datetime.datetime.now().strftime('%Y%m%dT%H%M%S_%f'))
+                failed.mkdir(parents=True);shutil.copy2(output/'build.log',failed/'build.log')
+                raise RuntimeError('Component build failed; see '+str(failed/'build.log')) from error
         for name in ['libcudss.so', 'libcudss.so.0']:
             (output / name).symlink_to('libcudss.so.0.7.1')
         build_java(output)
-        shipped = ['native_license', 'pangulu_worker', 'libcudss.so.0.7.1', 'PanguModule.jar', 'PanguDesktop.jar']
+        shipped = ['native_license', 'pangulu_worker', 'libpangu_backend.so','libcudss.so.0.7.1', 'PanguModule.jar', 'PanguDesktop.jar']
         sources = [*java_sources(), *source.glob('*.c'), *source.glob('*.cpp'), *source.glob('*.h')]
-        write(output / 'manifest.json', dict(module_version='0.3.0', pangu_abi=MODULE_ABI, comsol_series='6.4', cudss_abi='0.7.1',
+        write(output / 'manifest.json', dict(module_version='0.4.0', pangu_abi=MODULE_ABI, comsol_series='6.4', cudss_abi='0.7.1',execution_modes=['worker','direct'],
               files={name: sha(output / name) for name in shipped}, build_sdk_version=sdk_info(p)['version'],
               source_sha256={'src/' + str(f.relative_to(source)): sha(f) for f in sources}))
         target, previous = module_dir(), pathlib.Path(temp) / 'previous-module'
@@ -290,7 +300,10 @@ def ensure_module():
     return output
 
 
-def comsol_command(session, threads=None, backend='pangu'):
+def comsol_command(session, threads=None, backend='pangu', execution=None):
+    if execution is not None and backend!='pangu':raise ValueError('Execution mode applies only to the Pangu backend')
+    execution=execution or 'worker'
+    if execution not in {'worker','direct'}:raise ValueError('Pangu execution must be worker or direct')
     c = cfg()
     session = pathlib.Path(session)
     session.mkdir(parents=True, exist_ok=True)
@@ -298,7 +311,8 @@ def comsol_command(session, threads=None, backend='pangu'):
         p = sdk()
         verify(p)
         output = ensure_module()
-        env = clean_env(p, threads)
+        if execution=='direct' and not (output/'libpangu_backend.so').is_file():raise ValueError('Build the updated Pangu components before using direct execution')
+        env = clean_env(p, threads,execution)
         original_keys = licence_paths()
         keys = session / 'licence'
         keys.mkdir()
@@ -310,8 +324,9 @@ def comsol_command(session, threads=None, backend='pangu'):
         (session / 'native-license.log').write_text(check.stdout + check.stderr)
         if check.returncode or 'NATIVE_LICENSE_OK' not in check.stdout:
             raise RuntimeError('Pangu/GPU/licence preflight failed; see ' + str(session / 'native-license.log'))
-        info = dict(backend=backend, sdk=sdk_info(p), worker=str(output / 'pangulu_worker'), library=str(output / 'libcudss.so.0.7.1'),
+        info = dict(backend=backend, execution=execution,sdk=sdk_info(p), worker=str(output / 'pangulu_worker') if execution=='worker' else None, library=str(output / 'libcudss.so.0.7.1'),
                     library_sha256=sha(output / 'libcudss.so.0.7.1'), licences=[dict(name=key.name, sha256=sha(key)) for key in original_keys])
+        if (output/'libpangu_backend.so').is_file():info.update(backend_library=str(output/'libpangu_backend.so'),backend_library_sha256=sha(output/'libpangu_backend.so'))
     elif backend == 'cudss':
         output = pathlib.Path(c['comsol_root']) / 'ext/cudss/glnxa64'
         library = output / 'libcudss.so.0.7.1'
@@ -326,6 +341,9 @@ def comsol_command(session, threads=None, backend='pangu'):
     else:
         raise ValueError('Unknown backend: ' + backend)
     command = [str(pathlib.Path(c['comsol_root']) / 'bin/comsol'), '-cudaroot', c['cuda_root'], '-cudssroot', str(output)]
+    if backend=='pangu' and execution=='direct':
+        from .execution import direct_launcher
+        launcher,details=direct_launcher();command[0]=str(launcher);env['FLROOT']=c['comsol_root'];info['startup']=details
     if threads is not None:
         command += ['-np', str(threads)]
     write(session / 'session.json', dict(info, command=command, comsol_preferences='inherit', explicit_threads=threads))
@@ -363,7 +381,9 @@ def launch(args):
     source = pathlib.Path(args.input).resolve(strict=True) if args.input else None
     backend = getattr(args, 'backend', 'pangu')
     session = ROOT / 'data/runs' / ('comsol_' + datetime.datetime.now().strftime('%Y%m%dT%H%M%S_%f'))
-    command, env, output = comsol_command(session, args.threads, backend)
+    execution=getattr(args,'execution',None)
+    if execution is None:command,env,output=comsol_command(session,args.threads,backend)
+    else:command,env,output=comsol_command(session,args.threads,backend,execution)
     if args.cmd == 'run':
         info = read(session / 'session.json')
         global_options = backend == 'pangu' and cfg()['gui_global_options']

@@ -49,6 +49,7 @@ pangu-comsol package install /path/to/pangulu-release.tar.gz
 pangu-comsol license add /path/to/customer.key
 pangu-comsol doctor
 pangu-comsol run /path/to/model.mph
+pangu-comsol run --execution direct /path/to/model.mph
 ```
 
 | 命令 | 用途 |
@@ -74,9 +75,24 @@ GUI 中的 Pangu 选项由用户自行选择，不自动计算或保存。命令
 
 应用沿用 COMSOL 默认或用户已有的偏好、临时、恢复、工作区及配置位置，不创建或重写 `.prefs`。线程数仅在显式指定时覆盖本次运行。
 
+## Pangu 执行方式
+
+`--execution worker` 为默认方式，由独立进程调用 Pangu；`--execution direct` 在 COMSOL 进程内调用同一份数值后端。终端运行页和测试页均可选择，COMSOL 模型内仍使用同一个 Pangu Direct 选项。
+
+```bash
+./start.sh --execution worker /path/to/model.mph
+./start.sh --execution direct /path/to/model.mph
+./pangu-comsol test benchmark --backend pangu --execution direct \
+  --project /path/to/study3-pangulu-s --frequencies all
+```
+
+两种方式共用 `src/backend.c` 的 CSR→CSC、严格结构检查、分析、分解和回代实现。直接模式使用可复用的进程内暂存区，省去 socket/memfd；矩阵转换和向量暂存仍保留，因此不代表整条通路零拷贝。
+
+原始 SDK 在 COMSOL 预加载 `libjsig` 时会拒绝初始化。直接模式从本机 COMSOL 脚本生成 `runtime/launchers/comsol-direct`，只取消这一次启动的 `libjsig` 预加载；原始 SDK、许可和 COMSOL 安装不改，仍要求真实授权通过。该方式的信号预加载条件与标准启动不同，已验证的 GUI/数值场景见验收记录；默认 worker 保留标准启动。普通启动不增加偏好或目录重定向参数。
+
 ## 可选后端测试
 
-测试页可手动选择原生 `cudss`、`mycudss-direct` 直接封装、`mycudss-worker` 独立进程封装。三者的数值核心均为 COMSOL 随附的 NVIDIA cuDSS；后两者用来校准接口及桥接开销。
+测试页可手动选择原生 `cudss`、`mycudss-direct` 直接封装、`mycudss-worker` 独立进程封装和 `pangu`。前三者使用 COMSOL 随附的 NVIDIA cuDSS；Pangu 可另选 worker/direct 执行方式。
 
 ```bash
 ./pangu-comsol test status

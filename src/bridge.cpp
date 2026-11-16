@@ -3,6 +3,8 @@
 #include <cuda_runtime_api.h>
 #include "protocol.h"
 #include "profile.h"
+#include "backend.h"
+#include <dlfcn.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <spawn.h>
@@ -20,15 +22,33 @@
 #include <new>
 #include <time.h>
 extern char **environ;
+static bool direct_execution(){static bool direct=[](){const char *mode=getenv("PC_EXECUTION");return mode&&strcmp(mode,"direct")==0;}();return direct;}
+struct LocalApi {
+ void *library=nullptr;PanguBackend *(*create)(void)=nullptr;
+ int (*dispatch)(PanguBackend*,const BridgeRequest*,BridgeResponse*,void*)=nullptr;
+ void (*destroy)(PanguBackend*)=nullptr;
+};
+static LocalApi& local_api(){
+ static LocalApi api=[](){
+  LocalApi value;const char *path=getenv("PC_BACKEND");
+  if(path)value.library=dlopen(path,RTLD_NOW|RTLD_LOCAL);
+  if(value.library){
+   value.create=(decltype(value.create))dlsym(value.library,"pc_backend_create");
+   value.dispatch=(decltype(value.dispatch))dlsym(value.library,"pc_backend_dispatch");
+   value.destroy=(decltype(value.destroy))dlsym(value.library,"pc_backend_destroy");
+  }else fprintf(stderr,"PGL_DIRECT_LOAD_ERROR %s\n",path?dlerror():"PC_BACKEND is required");
+  return value;
+ }();return api;
+}
 
 struct cudssContext {int device=0;cudaStream_t stream=nullptr;};
 struct cudssConfig {std::map<int,std::vector<unsigned char>> values;};
 struct cudssMatrix {bool sparse=false;int64_t rows=0,cols=0,nnz=0,ld=0;void *starts=nullptr,*ends=nullptr,*indices=nullptr,*values=nullptr;cudaDataType_t indexType=CUDA_R_32I,valueType=CUDA_C_64F;cudssMatrixType_t type=CUDSS_MTYPE_GENERAL;cudssMatrixViewType_t view=CUDSS_MVIEW_FULL;cudssIndexBase_t base=CUDSS_BASE_ZERO;cudssLayout_t layout=CUDSS_LAYOUT_COL_MAJOR;};
-struct cudssData {int socket=-1;pid_t worker=-1;int fd=-1;void *memory=MAP_FAILED;BridgeRequest request={};BridgeResponse last={};int info=0,index_bytes=4;bool analyzed=false,factored=false;const int *interrupt=nullptr;std::map<int,std::vector<unsigned char>> user;
+struct cudssData {PanguBackend *local=nullptr;size_t memory_capacity=0;int socket=-1;pid_t worker=-1;int fd=-1;void *memory=MAP_FAILED;BridgeRequest request={};BridgeResponse last={};int info=0,index_bytes=4;bool analyzed=false,factored=false;const int *interrupt=nullptr;std::map<int,std::vector<unsigned char>> user;
  cudssMatrix_t staged_matrix=nullptr;int staged_device=-1;uint64_t epoch_counter=0;
  std::vector<uint64_t> scratch_ptr;std::vector<int32_t> scratch_idx;
 };
-static void log_event(const char *event,const char *detail=""){char b[1024];int n=snprintf(b,sizeof(b),"PGL_BRIDGE {\"event\":\"%s\",\"pid\":%d,\"backend\":\"pangulu_worker\",\"detail\":\"%s\"}\n",event,getpid(),detail);if(n>0)write(STDERR_FILENO,b,std::min((size_t)n,sizeof(b)-1));}
+static void log_event(const char *event,const char *detail=""){char b[1024];int n=snprintf(b,sizeof(b),"PGL_BRIDGE {\"event\":\"%s\",\"pid\":%d,\"backend\":\"%s\",\"detail\":\"%s\"}\n",event,getpid(),direct_execution()?"pangulu_direct":"pangulu_worker",detail);if(n>0)write(STDERR_FILENO,b,std::min((size_t)n,sizeof(b)-1));}
 #define bridge_now() PGL_NOW()
 struct CopyMetrics {uint64_t requested_bytes=0,host_bytes=0,device_bytes=0;double seconds=0;};
 static bool scalar_type(cudaDataType_t t){return t==CUDA_R_64F||t==CUDA_C_64F;}
@@ -51,7 +71,7 @@ static cudssStatus_t put_bytes(void*p,const void*in,size_t n){
  if(e!=cudaSuccess){cudaGetLastError();if(e!=cudaErrorInvalidValue)return CUDSS_STATUS_EXECUTION_FAILED;}
  memcpy(p,in,n);return CUDSS_STATUS_SUCCESS;
 }
-static void unmap(cudssData_t d){if(d->memory!=MAP_FAILED)munmap(d->memory,d->request.total_bytes);if(d->fd>=0)close(d->fd);d->memory=MAP_FAILED;d->fd=-1;}
+static void unmap(cudssData_t d){if(d->memory!=MAP_FAILED){if(direct_execution())free(d->memory);else munmap(d->memory,d->request.total_bytes);}if(d->fd>=0)close(d->fd);d->memory=MAP_FAILED;d->fd=-1;d->memory_capacity=0;}
 static cudssStatus_t start_worker(cudssData_t d){
  if(d->socket>=0)return CUDSS_STATUS_SUCCESS;
  const char *worker=getenv("PC_WORKER");if(!worker||!*worker){log_event("error","PC_WORKER is required");return CUDSS_STATUS_NOT_INITIALIZED;}
@@ -67,10 +87,16 @@ static cudssStatus_t start_worker(cudssData_t d){
 static cudssStatus_t rpc(cudssData_t d,int command){
  const double started=bridge_now();
  if(d->interrupt&&*d->interrupt&&command!=BR_CLOSE){d->info=-4;return CUDSS_STATUS_EXECUTION_FAILED;}
- cudssStatus_t status=start_worker(d);if(status!=CUDSS_STATUS_SUCCESS)return status;
  d->request.command=command;d->request.magic=PGL_BRIDGE_MAGIC;
- if(bridge_send(d->socket,&d->request,sizeof(d->request),command==BR_CLOSE?-1:d->fd)){d->info=-1;return CUDSS_STATUS_EXECUTION_FAILED;}
- int extra=-1;if(bridge_receive(d->socket,&d->last,sizeof(d->last),&extra)){if(extra>=0)close(extra);d->info=-2;return CUDSS_STATUS_EXECUTION_FAILED;}if(extra>=0)close(extra);
+ if(direct_execution()){
+  auto &api=local_api();if(!api.create||!api.dispatch||!api.destroy)return CUDSS_STATUS_NOT_INITIALIZED;
+  if(!d->local){d->local=api.create();if(!d->local)return CUDSS_STATUS_ALLOC_FAILED;log_event("direct_started","shared Pangu backend in COMSOL process");}
+  api.dispatch(d->local,&d->request,&d->last,d->memory);
+ }else{
+  cudssStatus_t status=start_worker(d);if(status!=CUDSS_STATUS_SUCCESS)return status;
+  if(bridge_send(d->socket,&d->request,sizeof(d->request),command==BR_CLOSE?-1:d->fd)){d->info=-1;return CUDSS_STATUS_EXECUTION_FAILED;}
+  int extra=-1;if(bridge_receive(d->socket,&d->last,sizeof(d->last),&extra)){if(extra>=0)close(extra);d->info=-2;return CUDSS_STATUS_EXECUTION_FAILED;}if(extra>=0)close(extra);
+ }
  if(d->last.magic!=PGL_BRIDGE_MAGIC){d->info=-3;return CUDSS_STATUS_EXECUTION_FAILED;}
  const double elapsed=bridge_now()-started;
  PGL_DETAIL(char timing[768];snprintf(timing,sizeof(timing),"command=%d structure_epoch=%llu roundtrip_seconds=%.9g worker_execute_seconds=%.9g conversion_seconds=%.9g value_update_seconds=%.9g pattern_seconds=%.9g release_seconds=%.9g canonical_nnz=%llu status=%d",command,(unsigned long long)d->request.structure_epoch,elapsed,d->last.analysis_seconds+d->last.factor_seconds+d->last.solve_seconds,d->last.conversion_seconds,d->last.value_update_seconds,d->last.pattern_seconds,d->last.release_seconds,(unsigned long long)d->last.canonical_nnz,d->last.status);log_event("rpc_timing",timing);)
@@ -109,14 +135,18 @@ static void stage_log(cudssData_t d,const char*kind,double started,const CopyMet
 // scratch_ptr/idx contain a fully validated, normalized readback of the actual
 // caller CSR. A fresh epoch is assigned only when this complete snapshot changes.
 static cudssStatus_t commit_full_stage(cudssData_t d,cudssHandle_t h,cudssMatrix_t A,CopyMetrics&copies){
- d->analyzed=false;d->factored=false;unmap(d);
+ d->analyzed=false;d->factored=false;if(!direct_execution())unmap(d);
  BridgeRequest q={};q.magic=PGL_BRIDGE_MAGIC;q.n=A->rows;q.nnz=A->nnz;q.nrhs=1;q.value_type=A->valueType;q.device=h->device;q.reuse=getenv("PC_REUSE")&&strcmp(getenv("PC_REUSE"),"refactor")==0;
  q.structure_epoch=++d->epoch_counter;q.matrix_type=(int)A->type;q.matrix_view=(int)A->view;
  q.ptr_offset=0;q.idx_offset=(q.n+1)*8;q.val_offset=(q.idx_offset+q.nnz*4+63)&~UINT64_C(63);q.b_offset=q.val_offset+q.nnz*item(A->valueType);q.x_offset=q.b_offset+q.n*item(A->valueType);q.total_bytes=q.x_offset+q.n*item(A->valueType);
  if(q.total_bytes>UINT64_C(20)*1024*1024*1024)return CUDSS_STATUS_ALLOC_FAILED;
  d->request=q;d->index_bytes=A->indexType==CUDA_R_64I?8:4;
- d->fd=memfd_create("comsol_pangulu_csr",MFD_CLOEXEC);if(d->fd<0||ftruncate(d->fd,q.total_bytes)){unmap(d);return CUDSS_STATUS_ALLOC_FAILED;}
- d->memory=mmap(nullptr,q.total_bytes,PROT_READ|PROT_WRITE,MAP_SHARED,d->fd,0);if(d->memory==MAP_FAILED){unmap(d);return CUDSS_STATUS_ALLOC_FAILED;}
+ if(direct_execution()){
+  if(q.total_bytes>d->memory_capacity){void *next=realloc(d->memory==MAP_FAILED?nullptr:d->memory,q.total_bytes);if(!next)return CUDSS_STATUS_ALLOC_FAILED;d->memory=next;d->memory_capacity=q.total_bytes;}
+ }else{
+  d->fd=memfd_create("comsol_pangulu_csr",MFD_CLOEXEC);if(d->fd<0||ftruncate(d->fd,q.total_bytes)){unmap(d);return CUDSS_STATUS_ALLOC_FAILED;}
+  d->memory=mmap(nullptr,q.total_bytes,PROT_READ|PROT_WRITE,MAP_SHARED,d->fd,0);if(d->memory==MAP_FAILED){unmap(d);return CUDSS_STATUS_ALLOC_FAILED;}
+ }
  const double host_started=bridge_now();memcpy((char*)d->memory+q.ptr_offset,d->scratch_ptr.data(),(q.n+1)*8);memcpy((char*)d->memory+q.idx_offset,d->scratch_idx.data(),q.nnz*4);PGL_DETAIL(copies.host_bytes+=(q.n+1)*8+q.nnz*4;copies.requested_bytes+=(q.n+1)*8+q.nnz*4;copies.seconds+=bridge_now()-host_started;)
  cudssStatus_t status=get_bytes(A->values,(char*)d->memory+q.val_offset,q.nnz*item(A->valueType),&copies);
  if(status==CUDSS_STATUS_SUCCESS){d->staged_matrix=A;d->staged_device=h->device;}return status;
@@ -161,7 +191,7 @@ cudssStatus_t cudssConfigDestroy(cudssConfig_t c){if(!c)return CUDSS_STATUS_INVA
 cudssStatus_t cudssConfigSet(cudssConfig_t c,cudssConfigParam_t p,void*v,size_t n){if(!c||!v||!n||n>4096)return CUDSS_STATUS_INVALID_VALUE;if(p==CUDSS_CONFIG_SOLVE_MODE&&n>=4&&*(int*)v!=0)return CUDSS_STATUS_NOT_SUPPORTED;c->values[(int)p]=std::vector<unsigned char>((unsigned char*)v,(unsigned char*)v+n);PGL_DETAIL(char line[128];snprintf(line,sizeof(line),"param=%d bytes=%zu; numerical policy delegated to Pangu",(int)p,n);log_event("config",line);)return CUDSS_STATUS_SUCCESS;}
 cudssStatus_t cudssConfigGet(cudssConfig_t c,cudssConfigParam_t p,void*v,size_t n,size_t*w){if(!c)return CUDSS_STATUS_INVALID_VALUE;auto it=c->values.find((int)p);if(it==c->values.end())return CUDSS_STATUS_NOT_SUPPORTED;if(w)*w=it->second.size();if(!v&&n==0)return CUDSS_STATUS_SUCCESS;if(n<it->second.size()||!v)return CUDSS_STATUS_INVALID_VALUE;memcpy(v,it->second.data(),it->second.size());return CUDSS_STATUS_SUCCESS;}
 cudssStatus_t cudssDataCreate(cudssHandle_t h,cudssData_t*d){if(!h||!d)return CUDSS_STATUS_INVALID_VALUE;*d=new(std::nothrow)cudssData;return *d?CUDSS_STATUS_SUCCESS:CUDSS_STATUS_ALLOC_FAILED;}
-cudssStatus_t cudssDataDestroy(cudssHandle_t,cudssData_t d){if(!d)return CUDSS_STATUS_INVALID_VALUE;if(d->socket>=0){rpc(d,BR_CLOSE);close(d->socket);d->socket=-1;}if(d->worker>0){int status;waitpid(d->worker,&status,0);}unmap(d);delete d;return CUDSS_STATUS_SUCCESS;}
+cudssStatus_t cudssDataDestroy(cudssHandle_t,cudssData_t d){if(!d)return CUDSS_STATUS_INVALID_VALUE;if(d->local){local_api().destroy(d->local);d->local=nullptr;}if(d->socket>=0){rpc(d,BR_CLOSE);close(d->socket);d->socket=-1;}if(d->worker>0){int status;waitpid(d->worker,&status,0);}unmap(d);delete d;return CUDSS_STATUS_SUCCESS;}
 cudssStatus_t cudssDataSet(cudssHandle_t h,cudssData_t d,cudssDataParam_t p,void*v,size_t n){if(!h||!d||!v||n==0)return CUDSS_STATUS_INVALID_VALUE;if(p==CUDSS_DATA_INFO){if(n!=4)return CUDSS_STATUS_INVALID_VALUE;memcpy(&d->info,v,4);return CUDSS_STATUS_SUCCESS;}if(p==CUDSS_DATA_USER_HOST_INTERRUPT){if(n!=4)return CUDSS_STATUS_INVALID_VALUE;d->interrupt=(const int*)v;log_event("host_interrupt_registered","checked between Pangu phases; in-phase asynchronous cancellation not implemented");return CUDSS_STATUS_SUCCESS;}log_event("unsupported_data_set");return CUDSS_STATUS_NOT_SUPPORTED;}
 cudssStatus_t cudssDataGet(cudssHandle_t h,cudssData_t d,cudssDataParam_t p,void*v,size_t n,size_t*w){
  if(!h||!d)return CUDSS_STATUS_INVALID_VALUE;
@@ -201,9 +231,13 @@ cudssStatus_t cudssExecute(cudssHandle_t h,int phase,cudssConfig_t c,cudssData_t
   uint64_t total=d->request.b_offset+2*dense;
   if(total>UINT64_C(20)*1024*1024*1024)return CUDSS_STATUS_ALLOC_FAILED;
   if(d->request.nrhs!=(uint64_t)b->cols){
-   if(ftruncate(d->fd,total))return CUDSS_STATUS_ALLOC_FAILED;
-   void *mapping=mremap(d->memory,d->request.total_bytes,total,MREMAP_MAYMOVE);
-   if(mapping==MAP_FAILED)return CUDSS_STATUS_ALLOC_FAILED;
+   void *mapping;
+   if(direct_execution()){
+    mapping=d->memory;if(total>d->memory_capacity){mapping=realloc(d->memory,total);if(!mapping)return CUDSS_STATUS_ALLOC_FAILED;d->memory_capacity=total;}
+   }else{
+    if(ftruncate(d->fd,total))return CUDSS_STATUS_ALLOC_FAILED;
+    mapping=mremap(d->memory,d->request.total_bytes,total,MREMAP_MAYMOVE);if(mapping==MAP_FAILED)return CUDSS_STATUS_ALLOC_FAILED;
+   }
    d->memory=mapping;d->request.nrhs=b->cols;d->request.x_offset=d->request.b_offset+dense;d->request.total_bytes=total;
   }
   status=get_bytes(b->values,(char*)d->memory+d->request.b_offset,(size_t)dense);if(status)return status;
