@@ -32,6 +32,18 @@ g++ -O2 -std=c++17 dev/tests/openmp_scope_test.cpp -ldl -o /tmp/pangu-openmp-sco
 
 在发生过故障的 COMSOL 6.4 运行库上，`local` 对照会打印 Intel provider、`copies=0 bodies=1 failures=1` 并返回 1；`deep` 必须绑定 GNU provider、`copies=1 bodies=1 failures=0` 并返回 0。该实验不加载 Pangu 或 CUDA；最终还需真实大模型的 direct 数值、完整频点和许可拒绝验收。
 
+还须测试嵌套晚加载：单独给外层设置 DEEPBIND 并不足够。把任务插件作为外层的显式依赖后，再晚加载它才会沿用正确的 GNU 绑定：
+
+```bash
+g++ -O2 -std=c++17 -shared -fPIC -fopenmp dev/tests/openmp_nested_loader.cpp -ldl -o /tmp/pangu-openmp-plain.so
+g++ -O2 -std=c++17 -shared -fPIC -fopenmp dev/tests/openmp_nested_loader.cpp -ldl \
+  -Wl,--no-as-needed -L/tmp -l:pangu-openmp-task.so -Wl,-rpath,'$ORIGIN' -o /tmp/pangu-openmp-linked.so
+/tmp/pangu-openmp-scope /path/to/multiphysics/lib/glnxa64/libiomp5.so /tmp/pangu-openmp-plain.so deep /tmp/pangu-openmp-task.so
+/tmp/pangu-openmp-scope /path/to/multiphysics/lib/glnxa64/libiomp5.so /tmp/pangu-openmp-linked.so deep /tmp/pangu-openmp-task.so
+```
+
+`plain` 对照应重现错误并返回 1；`linked` 必须返回 0 且打印 GNU provider。检查生产 `libpangu_backend.so` 的 `DT_NEEDED` 包含原始 SDK 提供的 hunyuangraph 组件，不包含开发机器的绝对路径。
+
 ## GPU 正确性和状态
 
 对 direct 和 worker 独立运行，保存原始日志和退出码：
