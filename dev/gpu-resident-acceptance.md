@@ -10,6 +10,17 @@
 - 执行 `python -m unittest discover -s dev/tests`，并编译 `dev/tests/adapter_test.cpp`。
 - Python 分发包应包含 `device.cu` 和 `device.h`；预编译运行包仍只需原有组件与 CUDA 运行库。
 
+容量策略可在无 GPU 的 CPU 上故障注入测试，直接调用生产分配函数，检查预留不足才重试精确尺寸、其他错误不重试、20 GiB 边界和退休分配回收：
+
+```bash
+g++ -O2 -std=c++17 -ffunction-sections -fdata-sections -Wl,--gc-sections \
+  -I/path/to/cuda/include -Isrc/include/cudss -Isrc \
+  dev/tests/matrix_capacity_test.cpp -ldl -o /tmp/pangu-matrix-capacity-test
+/tmp/pangu-matrix-capacity-test
+```
+
+该测试替换 CUDA 分配函数，不加载 CUDA 驱动或执行数值求解；GPU 容量、性能与数值仍须独立验收。
+
 ## GPU 正确性和状态
 
 对 direct 和 worker 独立运行，保存原始日志和退出码：
@@ -33,6 +44,7 @@
 - 改变 RHS 列数并回到小列数；GPU/HOST dense 分配只在超过容量时增长，IPC 只在实际更换分配时重开。结束后自有设备 live 字节为零。
 - 独立采样 warmup 后 GPU 总内存平台，覆盖厂商不透明因子，不能仅用桥内计数推断总 GPU 内存无增长。
 - 真实 COMSOL 59 点保存每 data 的两条 summary；`analysis_requests` 与 `analysis_calls` 分别表示 API 请求和实际 native 分析，避免将 59 次回调误算成 59 次初始化。
+- 对真实 nnz 小幅增长核对 12.5% 矩阵预留是否减少 allocation/IPC 次数；`matrix_bytes` 仍为实际长度。结合 `n_min/max`、`nnz_min/max` 和 `confirmed_device_pattern_changes` 核实结构变化，不能用容量复用跳过真实分析。
 
 ## 性能边界
 
