@@ -25,6 +25,15 @@
 
 失败清理可用 `adapter_test --expect-init-failure`，在独立进程内显式指向不存在的原始许可路径；应保留真实的 `PGL_LICENSE_ERROR`，正常结束测试并输出 `ADAPTER_INIT_FAILURE_CLEANUP_PASS`。不要替换或修改任何现有许可文件。
 
+## 长任务复用
+
+- 同一数据对象固定 n/nnz/pattern，原地更新 values 并求解至少 300 轮。应有一次成功 native 创建、一次 analysis、一次 numeric、299 次 refactor；固定 RHS 布局应只创建两个向量描述符。
+- 同一标量/矩阵类型切换真实 n/nnz/pattern 和 lower/upper 后重新分析。native handle 创建应保持一次，`handle_reanalyses` 随实际重分析增加；换标量/矩阵类型仍安全创建新 handle。
+- 两个数据对象交替求解不同矩阵，分别验证正确解和各自计数，不能共享因子状态。
+- 改变 RHS 列数并回到小列数；GPU/HOST dense 分配只在超过容量时增长，IPC 只在实际更换分配时重开。结束后自有设备 live 字节为零。
+- 独立采样 warmup 后 GPU 总内存平台，覆盖厂商不透明因子，不能仅用桥内计数推断总 GPU 内存无增长。
+- 真实 COMSOL 59 点保存每 data 的两条 summary；`analysis_requests` 与 `analysis_calls` 分别表示 API 请求和实际 native 分析，避免将 59 次回调误算成 59 次初始化。
+
 ## 性能边界
 
 在同一 GPU 分配、相同软件线程数下，以原样矩阵/RHS/参考解对比 native Pangu GPU CSC/CSR32、正式 direct、正式 worker 和原生 cuDSS。首次 core 包含 analysis、numeric 和相同的 solve；steady factor 使用相同 L2 原地值更新。每项至少三个独立进程，分别保存每阶段与总 wall time。

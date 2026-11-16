@@ -45,7 +45,7 @@ template<class V> void test(const char*name,cudssMatrixType_t type,bool lower,bo
  ck(cudssMatrixCreateCsr(&A,n,n,idx.size(),dp.or_host(ptr.data()),nullptr,di.or_host(idx.data()),dv.or_host(val.data()),CUDA_R_32I,scalar,type,lower?CUDSS_MVIEW_LOWER:CUDSS_MVIEW_FULL,CUDSS_BASE_ZERO));
  ck(cudssMatrixCreateDn(&B,n,nrhs,n,db.or_host(b.data()),scalar,CUDSS_LAYOUT_COL_MAJOR));ck(cudssMatrixCreateDn(&X,n,nrhs,n,dx.or_host(x.data()),scalar,CUDSS_LAYOUT_COL_MAJOR));
  ck(cudssExecute(h,CUDSS_PHASE_ANALYSIS,config,data,A,X,B));ck(cudssExecute(h,CUDSS_PHASE_FACTORIZATION,config,data,A,X,B));
- for(int step=0;step<2;step++){
+ for(int step=0;step<8;step++){
   if(step){for(int r=0;r<n;r++){dense[r*n+r]+=V(2);for(int k=ptr[r];k<ptr[r+1];k++)if(idx[k]==r)val[k]+=V(2);}rhs();dv.update(val.data(),val.size()*sizeof(V));db.update(b.data(),b.size()*sizeof(V));ck(cudssExecute(h,CUDSS_PHASE_REFACTORIZATION,config,data,A,X,B));}
   ck(cudssExecute(h,CUDSS_PHASE_SOLVE,config,data,A,X,B));if(device)cu(cudaMemcpy(x.data(),dx.p,x.size()*sizeof(V),cudaMemcpyDeviceToHost));double err=0;for(int i=0;i<6;i++)err=std::max(err,std::abs(x[i]-truth[i]));
   printf("ADAPTER_CASE name=%s memory=%s step=%d nrhs=%d error=%.17g\n",name,device?"device":"host",step,nrhs,err);if(!std::isfinite(err)||err>1e-10)throw std::runtime_error("Incorrect solution");
