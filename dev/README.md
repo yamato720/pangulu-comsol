@@ -23,6 +23,10 @@ python -B -m unittest discover -s dev/tests -v
 
 原生及 COMSOL 测试另需 gcc/g++、COMSOL 6.4、CUDA 12.9、原始 Pangu SDK 与该 GPU 的许可。版本基线和原厂库哈希记录在 [environment.json](environment.json)。
 
+GPU CSR 构建需要 CUDA 12 的 `nvcc`；可用 `PC_CUDA_COMPILER=/path/to/nvcc` 和 `NVCC_CCBIN=/path/to/supported/g++` 指定工具链。构建清单 `device_csr` 必须为 `true`，启动日志应包含 `GPU CSR exact validation and CUDA IPC enabled`。仅有运行库/头文件时会构建明确标识的 HOST 回退版。手工 profile 构建需要将 `device.cu` 编译为 PIC 对象并链接到 `libcudss`，同时为 `bridge.cpp` 定义 `PGL_DEVICE=1`；该对象只依赖 cudart，数值后端不需要重复链接 CUDA 核心。
+
+`device.cu` 使用完整偏移边界校验、索引范围/顺序校验和每个索引/数值位的比较；没有结构哈希。非法偏移在访问索引前拒绝；无序和重复索引走 HOST 的严格规范化/重复检查。IPC 句柄只导出桥接层独立分配的内存，因此调用者的子分配、managed 内存和原地更新不影响进程隔离。设备矩阵和多 RHS 缓冲区分别保留，旧分配在后端完成切换后释放。
+
 ```bash
 # 已有兼容 CUDA 安装可直接使用；需要原始 wheel 依赖时才运行此脚本。
 python3 -B dev/tools/install_cuda_dependencies.py
