@@ -1,0 +1,49 @@
+{
+  "purpose": "Recorded development baseline, not a target-machine configuration",
+  "python": ">=3.12",
+  "application_dependencies": "../pyproject.toml",
+  "analysis_dependencies": "requirements.txt",
+  "comsol": {
+    "version": "6.4.0.293",
+    "source": "Local licensed installation, configured by pangu-comsol init"
+  },
+  "pangu": {
+    "version": "26.46",
+    "abi": 2,
+    "original_archive": "pangulu-26.46-CUDA-12.9-x86_64-glibc2.27.tar.gz",
+    "archive_sha256": "1a03802d1daecd56d0e66ab9716e76be8b418a62a99d68a196e33a4e10748b73",
+    "core_sha256": "1fbb30f2246f5d1d79da9111cb5780dcecc736eaba85bd2d61455a3649747402",
+    "licence": "Original device-specific licence supplied locally; never committed"
+  },
+  "cuda": {
+    "version": "12.9",
+    "runtime_wheel": "nvidia-cuda-runtime-cu12==12.9.79",
+    "headers_wheel": "nvidia-cuda-nvcc-cu12==12.9.86",
+    "cublas_wheel": "nvidia-cublas-cu12==12.9.2.10",
+    "setup_script": "tools/install_cuda_dependencies.py",
+    "integrity": "Installer checks original PyPI SHA256 before extraction"
+  },
+  "cudss": {
+    "version": "0.7.1",
+    "source": "COMSOL ext/cudss/glnxa64/libcudss.so.0.7.1",
+    "library_sha256": "1813f5de39466a8e3f8abd61bab1e4dc439255dd99fa062dc415a970b9ae3190",
+    "calibration_source": "benchmarks/mycudss"
+  },
+  "profiling": {
+    "optional": true,
+    "cupti_version": "12.9.79",
+    "method": "Concurrent GPU activity records with monotonic timestamps; trace completion and dropped-record count checked"
+  },
+  "baseline_hardware": {
+    "gpu": "NVIDIA GeForce RTX 4080 Laptop GPU",
+    "gpu_memory_MiB": 12282,
+    "driver": "621.14",
+    "threads": 8
+  },
+  "data": {
+    "storage": "Local data/ tree; transferred separately from Git",
+    "s_models": ["models/S_after_mapping.mph", "models/S_full59_solved.mph"],
+    "pinched_cylinder_repository": "https://github.com/solved-tech-dev/case-studies/tree/main/MOOSE-with-Solved-Tech",
+    "pinched_cylinder_commit": "acce983316ed368f7dd260d36b2a2329907ea208"
+  }
+}

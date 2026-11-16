@@ -1,0 +1,50 @@
+Pinched cylinder / 圆柱薄壳纯矩阵复测
+====================================================
+矩阵1017005阶 / 45630025存储项 / FP64实数通用LU / 原始点载荷单RHS。
+RTX4080Laptop12GiB，原始Pangu26.46及原生NVIDIAcuDSS0.7.1，8个CPU线程。
+先完成完整MOOSE模型的CPU MUMPS与Pangu物理场核对，再独立重放字节相同的矩阵和RHS。
+转换/上传/校验在计时外；分析包含厂商CPU预处理，不称作纯GPU。
+默认Pangu L0及cuDSS各2次无追踪取均值、1次GPU追踪；L1限制单独列出。首次分解之后首先求解原始物理载荷。
+
+无追踪墙钟秒：后端 | 分析 | 首次数值分解 | 原载荷求解 | 核心合计 | 合计范围
+pangu-L1 | 1.219829 | 2.844805 | 0.045663 | 4.110298 | [3.897873517, 4.322721675]
+pangu-L0 | 0.888554 | 1.762900 | 0.024210 | 2.675664 | [2.666225489, 2.685101936]
+mycudss | 1.654194 | 1.673760 | 0.035944 | 3.363899 | [3.358623001, 3.369174379]
+
+单次追踪GPU kernel秒：后端 | 分析 | 首次数值分解 | 原载荷求解 | 分解GPU活动覆盖率
+pangu-L1 | GPU追踪未在300秒内完成；不报GPU成功时间
+pangu-L0 | 0.115112 | 1.623662 | 0.020246 | 99.8817%
+mycudss | 0.599694 | 1.536814 | 0.024719 | 90.1195%
+
+cuDSS/Pangu时间比，>1表示Pangu更快：
+{
+  "pangu-L0": {
+    "cuDSS_over_Pangu_cold_core_wall": 1.2572202830590207,
+    "cuDSS_over_Pangu_numeric_GPU": 0.9465108468903458
+  },
+  "pangu-L1": {
+    "cuDSS_over_Pangu_cold_core_wall": 0.8184075754693845
+  }
+}
+16组原系统数值检查全部通过；最大相对残差 1.6929091994e-11
+最大已知解相对误差 1.39768517719e-10
+原载荷解与MUMPS最大相对L2差 1.09938269007e-10
+小网格和百万阶完整五物理场/后处理量均与MUMPS比较通过。Pangu/MUMPS应用导出A/b字节相同。
+完成的2条主GPU追踪丢失0条；L1未完成尝试保留失败记录。
+完整MOOSE HOST CSC L1对照：分析3.43800748s，数值分解80.713801627s，原载荷求解0.034638447s，五物理场通过MUMPS核对；此时间不混入独立GPU CSC统计。
+未修改原HOST适配器独立重放：阶段{'analysis_order_symbolic': 0.967167433, 'numeric': 1.918277933, 'solve': 0.023868875}，核心合计2.909314s，MUMPS解相对L2差1.01808121409e-10。HOST接口本身不足以解释完整应用80s观察。
+输入/SDK/许可/配置原始哈希保持，正式Git工作树干净。
+
+限制：
+- Official MOOSE binary commit 08315af82e (2026-11-13), PETSc3.26.0 differs from public case lock 07b49de938ed357c136b487078065406d838aa26 / documented PETSc3.25.4. The original public input, seed mesh and factor45 refinement are retained; matrix shape is checked exactly.
+- The local original Pangu26.46 SDK package hash differs from the case documentation. Vendor binaries and license were neither patched nor replaced.
+- The public repository does not supply the chart raw benchmark matrix, original hardware or full comparison configuration; this is a local rerun of the public model, not strict reproduction of the chart.
+- Native GPU CSC Pangu L1/L2 and L0/L2 versus GPU CSR NVIDIA cuDSS0.7.1 via calibrated mycudss-direct, all FP64 general LU. All host conversion, upload, RHS preparation and result checks excluded from phase timers. Analysis includes vendor CPU work and is separately listed.
+- Final default Pangu L0 and native cuDSS each have two plain runs and one CUPTI trace, using the original single-RHS workload and first factor. Expensive L1 is separately bounded; it is not mixed with successful default measurements.
+- GPU times are monotonic CUPTI activity-interval unions. Trace overhead may be substantial near full VRAM; plain wall results and traced GPU times are both shown. Whole-device sampled memory cannot establish paging or a per-solver exact memory peak.
+- An earlier extra-eight-RHS GPU trace was intentionally stopped in numeric after about200s near full VRAM. Single-RHS L1 profiling also did not finish within300s and was bounded; no completed factor or GPU time is claimed for either. Two plain L1 replays and an independent original HOST adapter replay completed correctly, so the profiling waits are not normal solver time.
+- Full MOOSE HOST L1 numeric80.7138s is a separate observation. The identical original HOST adapter, replayed standalone without MOOSE, numerically completed in about1.92s. This rules out the HOST API alone as a sufficient explanation; MOOSE environment/available VRAM/context or load remains unisolated. No proven paging cause is claimed.
+- L1 enables MC64 matching/scaling per the SDK sample guide; L0 omits it. Runtime and memory sensitivity is observed; exact fill count or a paging cause is not exposed by this public API and is not claimed.
+
+复跑说明：dev/benchmarks/pinched_cylinder/README.txt
+/home/lwf/comsol-projects/pangulu-comsol/data/runs/pinched-cylinder_20261116T184505

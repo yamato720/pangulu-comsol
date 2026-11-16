@@ -1,0 +1,30 @@
+{
+  "direct.cpp": {
+    "source": "/home/lwf/comsol-projects/study3-pangulu-s/mycudss/src/direct.cpp",
+    "sha256": "8334cafea3786c1bf4b1281b8373c484699f5b1dd6c012b5f375df1c450fed21"
+  },
+  "bridge.cpp": {
+    "source": "/home/lwf/comsol-projects/study3-pangulu-s/mycudss/src/bridge.cpp",
+    "sha256": "9abf870f8b3f23bc0ff6f82c91d7810d20bf147b6d40641b10c27f3a047f35e2"
+  },
+  "worker.cpp": {
+    "source": "/home/lwf/comsol-projects/study3-pangulu-s/mycudss/src/worker.cpp",
+    "sha256": "e8fa8f8020605b5aeb02f0874fd91aa7c48f3328906c2c8bf56236d27ae5cce6"
+  },
+  "protocol.h": {
+    "source": "/home/lwf/comsol-projects/study3-pangulu-s/mycudss/src/protocol.h",
+    "sha256": "7021da082ee7fe281ee4e21a404c13bb6354bf2c0ba64ca2629e9fdb03d46559"
+  },
+  "profile.h": {
+    "source": "/home/lwf/comsol-projects/study3-pangulu-s/mycudss/src/profile.h",
+    "sha256": "5436632c3cc9ef98992457001dd6f67b9ccd4d88233b1209869fd4aa6cbb1b23"
+  },
+  "fixed_benchmark.cpp": {
+    "source": "/home/lwf/comsol-projects/study3-pangulu-s/mycudss/src/fixed_benchmark.cpp",
+    "sha256": "aff276fb588632954070c2dd8d1868d23f918c1e0cb1f16d162a3499cdc24b02"
+  },
+  "device_smoke.cpp": {
+    "source": "/home/lwf/comsol-projects/study3-pangulu-s/mycudss/src/device_smoke.cpp",
+    "sha256": "3a17f85fa9df9661eb0f0700005c7d0deb5e1853a48448baf22cbd45332760d3"
+  }
+}

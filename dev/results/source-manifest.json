@@ -1,0 +1,18 @@
+{
+  "mycudss": {
+    "source": "data/runs/mycudss-integration_20261116T145752/report.txt",
+    "sha256": "431f82799e223783c561d56a828fb8357e4f7044bc99c0fd4ecb9d8b9cfb34d5"
+  },
+  "pangu-execution": {
+    "source": "data/runs/pangu-execution_20261116T155941/report.txt",
+    "sha256": "8503be932cedab8d381d2f65c608ea422b7057804d434201b27040197a780589"
+  },
+  "matrix-duel": {
+    "source": "data/runs/matrix-duel_20261116T181512/report.txt",
+    "sha256": "fe7e5420a19ba626ae862e73d481d3a030cb16141dbb5f835f907fcb6a23b46b"
+  },
+  "pinched-cylinder": {
+    "source": "data/runs/pinched-cylinder_20261116T184505/report.txt",
+    "sha256": "d2361d65b0669e26635b53f8228af120acace6b50aee8b16eb5f4cbd7b2bd3b9"
+  }
+}

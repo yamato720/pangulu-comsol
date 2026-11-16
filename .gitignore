@@ -8,6 +8,7 @@
 !/setup.py
 !/MANIFEST.in
 !/src/
+!/dev/
 
 !/config/
 /config/*
@@ -33,3 +34,13 @@ __pycache__/
 *.so.*
 *.jar
 *.egg-info/
+
+# Developer source is versioned on develop; generated environments stay local.
+/dev/**/build/
+/dev/**/dist/
+/dev/**/runs/
+/dev/**/datasets/
+/dev/**/.venv/
+*.license.key
+.env
+.env.*

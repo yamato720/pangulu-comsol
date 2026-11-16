@@ -1,0 +1,49 @@
+GPU 驻留纯矩阵后端对照：完成
+Pangu原始SDK GPU CSC 与 mycudss-direct/原生NVIDIA cuDSS GPU CSR；无COMSOL、适配层、worker或IPC。
+矩阵/RHS准备及上传在计时外，GPU完成同步在计时内，原系统独立残差与已知解检查在测量后。
+
+稳态重分解的实际GPU kernel时间（毫秒；两次轨迹，每次取三次稳态均值）：
+s_complex: n=300475, nnz=15688748; Pangu 949.618ms; cuDSS 349.980ms; Pangu/cuDSS=2.7133; GPU覆盖 99.60%/99.95%
+poisson3d_48: n=110592, nnz=760320; Pangu 201.722ms; cuDSS 193.425ms; Pangu/cuDSS=1.0429; GPU覆盖 99.25%/99.82%
+transport3d_48: n=110592, nnz=760320; Pangu 323.081ms; cuDSS 360.302ms; Pangu/cuDSS=0.8967; GPU覆盖 99.14%/99.92%
+
+各阶段：普通同步完成时间/实际GPU kernel时间（毫秒；前者三次无追踪，后者两次追踪，不可相加）：
+s_complex
+  analysis: pangu wall=874.542 kernel=54.176; mycudss wall=841.691 kernel=139.745
+  numeric: pangu wall=989.190 kernel=947.321; mycudss wall=398.667 kernel=348.734
+  refactor_steady: pangu wall=931.404 kernel=949.618; mycudss wall=354.447 kernel=349.980
+  solve_1_steady: pangu wall=17.548 kernel=16.815; mycudss wall=8.384 kernel=7.378
+  solve_8_steady: pangu wall=144.301 kernel=137.498; mycudss wall=42.213 kernel=40.316
+poisson3d_48
+  analysis: pangu wall=339.275 kernel=16.040; mycudss wall=708.925 kernel=125.653
+  numeric: pangu wall=206.627 kernel=204.862; mycudss wall=240.555 kernel=196.641
+  refactor_steady: pangu wall=201.331 kernel=201.722; mycudss wall=193.466 kernel=193.425
+  solve_1_steady: pangu wall=5.210 kernel=5.309; mycudss wall=5.010 kernel=4.835
+  solve_8_steady: pangu wall=11.950 kernel=12.402; mycudss wall=18.433 kernel=17.737
+transport3d_48
+  analysis: pangu wall=338.908 kernel=15.596; mycudss wall=700.217 kernel=117.151
+  numeric: pangu wall=340.226 kernel=322.614; mycudss wall=416.736 kernel=362.577
+  refactor_steady: pangu wall=347.827 kernel=323.081; mycudss wall=363.355 kernel=360.302
+  solve_1_steady: pangu wall=7.621 kernel=5.293; mycudss wall=4.361 kernel=4.575
+  solve_8_steady: pangu wall=18.404 kernel=13.594; mycudss wall=13.668 kernel=12.346
+
+验收：30次主运行，300组残差/已知解检查（1350个RHS列）通过；最大解相对差 1.54115014218e-08，最大原系统相对残差 3.96639415866e-13；12份主轨迹丢失记录数均0。
+
+补充：S矩阵SDK原生GPU CSR输入也通过变值重分解与多RHS检查。该控制只有一次普通与一次追踪，不与主统计混用。
+
+原始文件：
+/home/lwf/comsol-projects/pangulu-comsol/data/runs/matrix-duel_20261116T181512/suite.json
+/home/lwf/comsol-projects/pangulu-comsol/data/runs/matrix-duel_20261116T181512/dataset-sha256.json
+
+方法与限制：
+Primary Pangu calls the original SDK directly with GPU-resident CSC (64-bit pointers, 32-bit indices); mycudss-direct forwards to original NVIDIA cuDSS with equivalent GPU-resident CSR32.
+No COMSOL model, Pangu cuDSS adapter, worker or IPC runs in this test. CPU format conversion, RHS construction, allocation and upload occur before phase timers. Output download and independent residual/error verification occur after measured calls.
+First numeric is reported separately. Steady refactor and solve averages exclude the initial factor and first refactor/solve warmup. Each process performs one numeric and four refactors with pre-uploaded scale variants 1.00/1.01/0.99; the numerical zero/nonzero pattern is unchanged.
+Plain wall timings have three independent process trials; GPU trace timings have two. Each steady result first averages three calls within that process, then averages processes.
+GPU kernel time uses the union of actual concurrent-kernel activity intervals; copies and memset are separate. Host CPU time and CUDA API time overlap GPU execution and must not be added to it.
+Analysis still contains vendor CPU reordering/preprocessing; the main GPU-bound head-to-head uses steady refactor, where measured GPU coverage is approximately 99% or greater.
+CUPTI concurrent tracing is not zero-overhead. Large-factor trace/control wall differences are recorded; short solves show larger relative tracing effects and run variation.
+GPU activity confirms execution location and duration, not identical FLOP counts or FP64 hardware saturation. Different ordering/fill and algorithms are part of each backend implementation.
+Pangu uses L0 ordering and L2 reuse. cuDSS uses auto reorder/factor, hybrid off, pivot threshold 1 and epsilon 1e-13, matching the calibrated COMSOL settings; numerical policies are not claimed identical.
+These three matrices on this RTX 4080 Laptop/CUDA12.9 system do not establish a universal ranking for all matrices or GPUs.
+This native-device benchmark does not change the existing CLI adapter, whose matrix/vector staging remains. Native GPU CSR support is separately checked for future integration work.

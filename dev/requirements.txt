@@ -1,0 +1,3 @@
+# Install application dependencies with: python -m pip install -e . -r dev/requirements.txt
+numpy>=1.24
+scipy>=1.10

@@ -1,0 +1,35 @@
+Pangu worker/direct 执行方式：实现及验收完成
+默认 worker；CLI 使用 --execution worker/direct，运行页和测试页可选择。
+
+完整 S Study3 59频点，两次均值：worker 238.103329s；direct 240.600390s。
+原始值：worker [231.13769186000002, 245.068965702]；direct [240.387129861, 240.813649789]。
+direct 均值耗时变化 +1.049%；本轮未显示完整流程明显提速。
+
+固定 A0 回放（6轮/12RHS，四次交错均值）：worker 10.913872s；direct 9.752317s。
+direct 同步完成时间减少 10.643%；不能直接外推完整Study。
+
+整卡显存采样峰值均值：worker 7475.0MiB；direct 7313.0MiB。
+direct 低约 162.0MiB，采样含桌面及其他进程。
+
+验收：4×236=944项S档CPU参考；3×236=708项跨执行方式保存结果比较；96项固定已知解检查；一般/实复数/SPD/HPD/双RHS/重分解适配测试；实数/复数/非线性/瞬态批处理及真实GUI两种方式均通过。
+数值后端在 src/backend.c，两种方式共用。直接方式省去socket/memfd并复用私有暂存区；矩阵转换与向量暂存仍保留。
+兼容限制：原SDK遇到libjsig预加载会报告完整性检查失败。direct使用当前厂商脚本私有副本省略此预加载，真实授权仍必须通过；原COMSOL脚本、SDK和许可未修改。
+GUI验收采用测试专用偏好副本及软件渲染；正常产品启动不传这些测试覆盖。真实用户偏好未修改。
+
+原始证据：
+/home/lwf/comsol-projects/pangulu-comsol/data/runs/pangu-execution_20261116T155941/suite.json
+/home/lwf/comsol-projects/pangulu-comsol/data/runs/pangu-execution_20261116T155941/fixed/report.json
+/home/lwf/comsol-projects/pangulu-comsol/data/runs/pangu-execution_20261116T155941/gui-verification.json
+
+限制：
+Two full S runs per mode and four fixed replay blocks are local observations; not a broad performance guarantee.
+Full S inputs and CPU reference are identical, but live floating-point assembly and stored sparsity can vary between runs.
+Fixed replay repeats the same captured A0 six times with two manufactured RHS per iteration. CUDA completion is inside the timed calls; independent verification is afterward.
+Both timings are completion wall times including relevant host/bridge/backend work, not GPU kernel-only durations.
+Direct keeps CSR-to-CSC, strict structure policy, L0/L2, vector staging and finite-output checking. It is not an all-GPU zero-copy path.
+Direct omits libjsig preloading to allow genuine SDK initialization; arbitrary native plugins, concurrent model solving and fault/signal-chain equivalence are outside this acceptance scope.
+GPU memory is sampled whole-device use, including desktop and other processes. Small differences are not exact per-process allocations.
+Original input models, SDK and licence remain intact. No customer release archive generated.
+
+源码提交：4f5d493b2f80c3e84453c215e0e944c43949b3bc
+安装版CLI、两个执行方式菜单及真实终端键盘检查通过，正式仓库不含测试源码、数据、SDK或许可。

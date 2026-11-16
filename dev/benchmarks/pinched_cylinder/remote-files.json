@@ -1,0 +1,398 @@
+{
+  "repository": "solved-tech-dev/case-studies",
+  "commit": "acce983316ed368f7dd260d36b2a2329907ea208",
+  "files": [
+    {
+      "path": "MOOSE-with-Solved-Tech/.gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b8e06721733bd3a15b1417e710513e985b97fd7a",
+      "size": 186,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/b8e06721733bd3a15b1417e710513e985b97fd7a"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/LICENSE",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "be3f7b28e564e7dd05eaf59d64adba1a4065ac0e",
+      "size": 34523,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/be3f7b28e564e7dd05eaf59d64adba1a4065ac0e"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/LICENSE-NOTICE.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5f1a0ab888ee326484cfbf0b00732804464276fd",
+      "size": 1507,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/5f1a0ab888ee326484cfbf0b00732804464276fd"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "63a091d7e3bc586504d0c0ac0e9f4e3a730c62c5",
+      "size": 2754,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/63a091d7e3bc586504d0c0ac0e9f4e3a730c62c5"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/README.zh-CN.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1f8f4fdfe8a2fe2a04aae40c1cef3644dac3136f",
+      "size": 2470,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/1f8f4fdfe8a2fe2a04aae40c1cef3644dac3136f"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/adapter/pangulu_solver.hpp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8e9bb45a203e54a6225e377bce9ff685eaa21d1c",
+      "size": 5902,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/8e9bb45a203e54a6225e377bce9ff685eaa21d1c"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/adapter/sparse.hpp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3376fd4c599bdf8dd124049acc8b415cf6b068b4",
+      "size": 2977,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/3376fd4c599bdf8dd124049acc8b415cf6b068b4"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/app/Makefile",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e7e5e3ac20897a4d39914ad26da4011bba00fd27",
+      "size": 507,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/e7e5e3ac20897a4d39914ad26da4011bba00fd27"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/app/include/base/MooseSolvedApp.h",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "34a9ad1ac85a8faba1d8cb0cee62209b9fd75702",
+      "size": 307,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/34a9ad1ac85a8faba1d8cb0cee62209b9fd75702"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/app/src/base/MooseSolvedApp.C",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0c3390f7c08759d7686dcd3bb2ccbbbe7effba97",
+      "size": 1478,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/0c3390f7c08759d7686dcd3bb2ccbbbe7effba97"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/app/src/main.C",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2d58c83acfaed2512c3ce1490a5f16e96d3edcd3",
+      "size": 178,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/2d58c83acfaed2512c3ce1490a5f16e96d3edcd3"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/annular-torsion/case.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "31a537c6fe34f832a02652d93100f77fa625eb88",
+      "size": 592,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/31a537c6fe34f832a02652d93100f77fa625eb88"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/annular-torsion/upstream/ad_torque_small.i",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a7a3e1ba88ce84d7ebc1ab3960ecbfba0f3cf166",
+      "size": 2312,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/a7a3e1ba88ce84d7ebc1ab3960ecbfba0f3cf166"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/gap-heat/case.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d5b42e58ac7a421f8490ec86d96dc39441a5aa79",
+      "size": 476,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/d5b42e58ac7a421f8490ec86d96dc39441a5aa79"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/gap-heat/upstream/meshed_gap.e",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "95b8674490527e49781ab6bf61580ed4308f1d64",
+      "size": 12040,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/95b8674490527e49781ab6bf61580ed4308f1d64"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/gap-heat/upstream/meshed_gap_thermal_contact_constant_conductance.i",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ccd629b8aa32c2a5047383a9044e6584080e975b",
+      "size": 1239,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/ccd629b8aa32c2a5047383a9044e6584080e975b"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/hex20-heat/case.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "90e750159163e4e4f4f2595dc62ae5bf581c9713",
+      "size": 432,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/90e750159163e4e4f4f2595dc62ae5bf581c9713"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/hex20-heat/upstream/heat_conduction_patch_hex20.i",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c72433b339fd2a84675bdace013180159a40114a",
+      "size": 3815,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/c72433b339fd2a84675bdace013180159a40114a"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/mug/case.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "23cd6c084fefc1e4f2e1a83c506bd99dbfb810d5",
+      "size": 408,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/23cd6c084fefc1e4f2e1a83c506bd99dbfb810d5"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/mug/upstream/ex01.i",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c6aab5546290ae46007aebe8d626ebbcbad02573",
+      "size": 813,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/c6aab5546290ae46007aebe8d626ebbcbad02573"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/mug/upstream/mug.e",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6770d8ddc8ff977539dd75420c5c4e7fa9835694",
+      "size": 226076,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/6770d8ddc8ff977539dd75420c5c4e7fa9835694"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/pinched-cylinder/case.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "07ccc2c1ed8b9f7f3dd75fafc04f3ceac837f7e0",
+      "size": 577,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/07ccc2c1ed8b9f7f3dd75fafc04f3ceac837f7e0"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/pinched-cylinder/upstream/cyl_sym_10x10.e",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8d3603b3702a5feb2e99dc8e70f9bc0d4897a288",
+      "size": 11212,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/8d3603b3702a5feb2e99dc8e70f9bc0d4897a288"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/pinched-cylinder/upstream/pinched_cylinder_symm.i",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ea4b314a7fa188ca0c1c68e65b97eef832e7b9a1",
+      "size": 4904,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/ea4b314a7fa188ca0c1c68e65b97eef832e7b9a1"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/thermomech/case.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5e5681a9518ddee317715b06f5ebc81d590f430e",
+      "size": 505,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/5e5681a9518ddee317715b06f5ebc81d590f430e"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/cases/thermomech/upstream/thermomech_step01.i",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1dc8218614f4c28ac4f14d82446a737ad57e9ae1",
+      "size": 2134,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/1dc8218614f4c28ac4f14d82446a737ad57e9ae1"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/docs/BUILD-AND-RUN.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7d2a409a01cbadcf67ebf22b0fa15d5440b49521",
+      "size": 5777,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/7d2a409a01cbadcf67ebf22b0fa15d5440b49521"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/docs/BUILD-AND-RUN.zh-CN.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "556bd78e5dc07f31c1184054fa27285cfa6919f4",
+      "size": 5116,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/556bd78e5dc07f31c1184054fa27285cfa6919f4"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/docs/CASES.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5ab53e714b824660f18df5c00cae6847b8e6ae9d",
+      "size": 6403,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/5ab53e714b824660f18df5c00cae6847b8e6ae9d"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/docs/CASES.zh-CN.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dd721355c38c980df450740295b4fea31b4ecd95",
+      "size": 5984,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/dd721355c38c980df450740295b4fea31b4ecd95"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/docs/INTEGRATION.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0a79f46061e15a4990ba43202c3581e5767f1c97",
+      "size": 4005,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/0a79f46061e15a4990ba43202c3581e5767f1c97"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/docs/INTEGRATION.zh-CN.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "48ecf6d40b83dbf347bb06519f39f119d6b0dd86",
+      "size": 3748,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/48ecf6d40b83dbf347bb06519f39f119d6b0dd86"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/docs/VALIDATION.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e415d8f589d64d9b54a39127e2d998b9c4b3a985",
+      "size": 3575,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/e415d8f589d64d9b54a39127e2d998b9c4b3a985"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/docs/VALIDATION.zh-CN.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2daa920729809eb6b51326c18c6519863e396a71",
+      "size": 3127,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/2daa920729809eb6b51326c18c6519863e396a71"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/integration/petsc/solver_pangulu.cpp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b5224931e10c02a9e2865350982e5f5fd9230048",
+      "size": 7615,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/b5224931e10c02a9e2865350982e5f5fd9230048"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/licenses/MOOSE-COPYRIGHT",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fe6264950f3e868737b22ad6442d20d0a91efeea",
+      "size": 2856,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/fe6264950f3e868737b22ad6442d20d0a91efeea"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/licenses/MOOSE-LGPL-2.1.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4362b49151d7b34ef83b3067a8f9c9f877d72a0e",
+      "size": 26530,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/4362b49151d7b34ef83b3067a8f9c9f877d72a0e"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/requirements.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0ffddefd09699aaf69ba29463c6fa93046dd5d53",
+      "size": 24,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/0ffddefd09699aaf69ba29463c6fa93046dd5d53"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/tests/test_native.cpp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "741404dca2024c4606fd8c6b2e00a0e3dd397e60",
+      "size": 1153,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/741404dca2024c4606fd8c6b2e00a0e3dd397e60"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/tests/test_petsc.cpp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8e8953ff129aca6c097d387b77868cd635845ae5",
+      "size": 3145,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/8e8953ff129aca6c097d387b77868cd635845ae5"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/tests/test_sparse.cpp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f34d8c9a2d18243c5fbab5c90dea59a058fc1f25",
+      "size": 1035,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/f34d8c9a2d18243c5fbab5c90dea59a058fc1f25"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/tools/build_plugin.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "04d71afd90f7f57cb6358d22176df42d9cd53cb1",
+      "size": 2826,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/04d71afd90f7f57cb6358d22176df42d9cd53cb1"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/tools/fetch_upstream.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e616a0944c8393742c490b9f32e44a85b3072c48",
+      "size": 939,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/e616a0944c8393742c490b9f32e44a85b3072c48"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/tools/fix_gap_boundary.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a2a13645516779e160d84759ada12f7db9b7d361",
+      "size": 1935,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/a2a13645516779e160d84759ada12f7db9b7d361"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/tools/refine_quad.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f8e80cbd7e58b3c8b93c998762ae4589ba058453",
+      "size": 5212,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/f8e80cbd7e58b3c8b93c998762ae4589ba058453"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/tools/run_case.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b9178ac03f3d065406eb96df78efe24d33d4856c",
+      "size": 6809,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/b9178ac03f3d065406eb96df78efe24d33d4856c"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/tools/validate.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "063ddd34b0bf0da9edc265b8b96b07f2fbbd43a7",
+      "size": 7629,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/063ddd34b0bf0da9edc265b8b96b07f2fbbd43a7"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/tools/verify_sources.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "36240131125dfb27a9f5f3f93636ecfa9d3bdee7",
+      "size": 889,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/36240131125dfb27a9f5f3f93636ecfa9d3bdee7"
+    },
+    {
+      "path": "MOOSE-with-Solved-Tech/upstream.lock.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f8805b38039f58976113145befb7f8ec6f955589",
+      "size": 2405,
+      "url": "https://api.github.com/repos/solved-tech-dev/case-studies/git/blobs/f8805b38039f58976113145befb7f8ec6f955589"
+    }
+  ]
+}

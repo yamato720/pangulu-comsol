@@ -1,0 +1,124 @@
+{
+  "status": "validated_with_L1_resource_limit",
+  "extracted_to": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/pinched-cylinder-package_20261116T200105/acceptance/relocated workspace/pinched-cylinder-replay",
+  "verify_output": "VERIFIED 338 package files\n",
+  "started_at": "2026-11-16T20:12:16.865053+08:00",
+  "configure_and_build": [
+    {
+      "action": "configure",
+      "returncode": 0,
+      "wall_seconds": 0.21847202902426943,
+      "log": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/pinched-cylinder-package_20261116T200105/acceptance/relocated workspace/pinched-cylinder-replay/configure-acceptance.log"
+    },
+    {
+      "action": "build",
+      "returncode": 0,
+      "wall_seconds": 10.857768683985341,
+      "log": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/pinched-cylinder-package_20261116T200105/acceptance/relocated workspace/pinched-cylinder-replay/build-acceptance.log"
+    }
+  ],
+  "runs": [
+    {
+      "arguments": [
+        "run",
+        "--case",
+        "small",
+        "--repeat",
+        "1",
+        "--backends",
+        "pangu-L0",
+        "pangu-L1",
+        "mycudss",
+        "cudss",
+        "--label",
+        "small-portability"
+      ],
+      "returncode": 0,
+      "wall_seconds": 3.9978370989847463,
+      "log": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/pinched-cylinder-package_20261116T200105/acceptance/relocated workspace/pinched-cylinder-replay/run-0-acceptance.log"
+    },
+    {
+      "arguments": [
+        "run",
+        "--case",
+        "million",
+        "--repeat",
+        "1",
+        "--backends",
+        "pangu-L0",
+        "pangu-L1",
+        "mycudss",
+        "cudss",
+        "--label",
+        "million-portability"
+      ],
+      "returncode": 1,
+      "wall_seconds": 202.4613473280042,
+      "log": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/pinched-cylinder-package_20261116T200105/acceptance/relocated workspace/pinched-cylinder-replay/run-1-acceptance.log"
+    }
+  ],
+  "failed_run": 1,
+  "additional_runs": [
+    {
+      "arguments": [
+        "run",
+        "--case",
+        "small",
+        "--repeat",
+        "1",
+        "--backends",
+        "pangu-L0",
+        "mycudss",
+        "--trace",
+        "--label",
+        "trace-portability"
+      ],
+      "returncode": 0,
+      "wall_seconds": 2.6834072780038696,
+      "log": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/pinched-cylinder-package_20261116T200105/acceptance/relocated workspace/pinched-cylinder-replay/extra-0-acceptance.log"
+    },
+    {
+      "arguments": [
+        "host-control",
+        "--case",
+        "small"
+      ],
+      "returncode": 0,
+      "wall_seconds": 1.4874143679917324,
+      "log": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/pinched-cylinder-package_20261116T200105/acceptance/relocated workspace/pinched-cylinder-replay/extra-1-acceptance.log"
+    }
+  ],
+  "limitation": "All small backends, million Pangu L0/mycudss/native cuDSS, small CUPTI and original HOST small control passed. Million Pangu L1 exceeded180s near full VRAM. The original experiment binary also exceeded30s diagnostic bound. Failure is retained, not counted as successful benchmark.",
+  "tested_draft_archives": [
+    {
+      "archive": "pinched-cylinder-code.tar.gz",
+      "sha256": "4d20eaff6073353b1c55203d95352b751eb271297d2fa96e9faab21a529e22d3",
+      "files": 96,
+      "safe_paths": true,
+      "no_device_keys_or_vendor_libraries": true
+    },
+    {
+      "archive": "pinched-cylinder-data.tar.gz",
+      "sha256": "0e13584a21a2330142128b382d2aed8535d7dc48d448509fa7b76826cedd940a",
+      "files": 244,
+      "safe_paths": true,
+      "no_device_keys_or_vendor_libraries": true
+    }
+  ],
+  "final_archives": [
+    {
+      "archive": "pinched-cylinder-code.tar.gz",
+      "bytes": 224218,
+      "sha256": "33b9175d5aa9b9caad97894e3473f96062ca475b7df4ff342834bb08e30c050f",
+      "files": 96
+    },
+    {
+      "archive": "pinched-cylinder-data.tar.gz",
+      "bytes": 507796452,
+      "sha256": "96e3740c70dc3b1d553fabcc6312000fd370f8b645719110c66ca6fdcb93f1ea",
+      "files": 324
+    }
+  ],
+  "final_archive_checksums": "SHA256SUMS checked OK",
+  "final_wrapper_changes": "Default backend list is now Pangu L0 and mycudss; explicit cuDSS include path has priority. Numerical C++ and input data are unchanged from the relocated validation."
+}

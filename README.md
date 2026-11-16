@@ -4,6 +4,8 @@ Pangu–COMSOL 是带交互式终端界面的 CLI 应用，用于配置 COMSOL �
 
 `main` 是交付主分支，保留正式源码、安装定义、通用配置及客户说明。[`develop`](https://github.com/yamato720/pangulu-comsol/tree/develop) 是开发分支，另含 mycudss、测试、性能实验和环境准备工具；这些内容不进入客户安装包。厂商 SDK、许可和 CUDA 运行库另行提供。
 
+当前为开发工作区。测试环境、依赖版本、mycudss 构建及各实验入口见 [dev/README.md](dev/README.md)。原有实验脚本保留，目标机器按自身安装位置调整路径。
+
 ## 交互式终端应用
 
 在源码目录直接启动：

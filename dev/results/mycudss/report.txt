@@ -1,0 +1,34 @@
+cuDSS 可选测试入口与原生校准：完成
+应用版本 0.5.0；F8 测试页可手动选择原生/直接封装/worker封装。
+
+完整 S Study3：59频点，8线程，CUDA12.9，FP64，hybrid memory never；每方案两次：
+cudss: 均值 157.865737s；原始值 [159.363717073, 156.367757618]；较原生 +0.000%
+mycudss-direct: 均值 166.581469s；原始值 [170.435514576, 162.727422631]；较原生 +5.521%
+mycudss-worker: 均值 194.245787s；原始值 [191.306827556, 197.18474548100002]；较原生 +23.045%
+
+严格固定A/b回放：每次6系统/12RHS，三组交错重复，同步完成后停表：
+cudss: 均值 7.213519s；原始值 [7.20403626201, 7.24250847903, 7.1940129349]；较原生 +0.000%
+mycudss-direct: 均值 7.213888s；原始值 [7.1973686111, 7.20275246402, 7.24154311501]；较原生 +0.005%
+mycudss-worker: 均值 9.212629s；原始值 [9.25335864208, 9.2188503229, 9.16567734594]；较原生 +27.713%
+
+验收：完整扫描6×236=1416项CPU参考通过；对原生保存结果直接比较5×236=1180项通过；固定回放108项已知解检查通过；实数/复数、重分解和零RHS六组smoke通过。
+32项测试、安装版构建与F8键盘操作、真实PTY退出检查通过。
+校准C++源码与v1_native_equivalent完全一致起步；仅移除硬编码安装路径，改用本模组配置及CUDA12.9构建。
+正式Pangu组件、原SDK/许可、本机配置和原工程保持；测试组件位于runtime/tests/mycudss，源码位于忽略的dev/benchmarks/mycudss。
+COMSOL自行刷新两份偏好文件的时间注释；已通过原始哈希精确重构证明所有设置键值保持，模组未恢复或改写用户偏好文件。
+
+结果路径：
+/home/lwf/comsol-projects/pangulu-comsol/data/runs/mycudss-integration_20261116T145752/suite.json
+/home/lwf/comsol-projects/pangulu-comsol/data/runs/mycudss-integration_20261116T145752/fixed/suite.json
+/home/lwf/comsol-projects/pangulu-comsol/data/runs/mycudss-integration_20261116T145752/native-comparison
+
+限制：
+Full S timings include assembly, solver preparation and bridge work; loading, validation and saving are excluded.
+Two full runs per variant and three fixed replay blocks are local observations, not a broad performance guarantee.
+Full model assemblies can differ at floating-point/sparsity details. Fixed replay controls byte-identical A0/A1 and the same manufactured RHS, with GPU completion before stopping timers.
+Fixed replay reports synchronous ABI completion time, including bridge and backend; it is not pure GPU kernel timing.
+GPU memory values are sampled whole-device use, including Windows/desktop and other processes.
+Worker calibration covers single GPU, general full CSR, FP64 real/complex, single RHS and phase-boundary cancellation; advanced cuDSS modes are outside this acceptance scope.
+The optional testing backend sources, models and raw reports remain outside the production source repository and application wheel. No customer release archive generated.
+
+GitHub源码提交：66c4ce0fa6a08c69a9c1788a0d418ebdde410fbe
