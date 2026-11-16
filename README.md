@@ -96,6 +96,8 @@ GUI 中的 Pangu 选项由用户自行选择，不自动计算或保存。命令
 
 `cudssDataCreate` 同步创建该数据对象拥有的真实 Pangu handle；worker 同时完成子进程启动。首次分析使用这个尚未绑定矩阵的 handle，准备和校验仍在 `cudssExecute` 内。性能对照应同时报告 Create/DataCreate、首个求解阶段和完整冷启动延迟，避免将初始化位置变化误认为总耗时下降。授权或后端初始化失败会在 DataCreate 返回。
 
+长任务中同一数据对象保留自己的 native handle、缓冲区、IPC 映射和 dense 描述符。相同结构只做 L2 重分解；结构确实变化时，在相同设备、精度和矩阵类型的 L2 会话内重新分析，保留 handle。矩阵类型/精度/设备或复用策略变化，以及 native 失败后的重新分析，会建立新 handle。对象之间不共享因子状态。销毁时各输出一条 `PGL_BRIDGE_SUMMARY` 和 `PGL_BACKEND_SUMMARY`，记录真实创建、分析、重分解、分配和 IPC 次数。
+
 HOST、混合内存和无序 CSR 保留严格的 HOST 规范化路径；CUDA IPC 导出不可用时，worker 使用 HOST 传输。调用者数组不会被改写。HOST 路径仍需要 CSR→CSC，GPU 路径仍有设备内快照和 RHS/解复制，各阶段准备成本包含在对应的 cuDSS 调用内。
 
 原始 SDK 在 COMSOL 预加载 `libjsig` 时会拒绝初始化。直接模式从本机 COMSOL 脚本生成 `runtime/launchers/comsol-direct`，只取消这一次启动的 `libjsig` 预加载；原始 SDK、许可和 COMSOL 安装不改，仍要求真实授权通过。该方式的信号预加载条件与标准启动不同，已验证的 GUI/数值场景见验收记录；默认 worker 保留标准启动。普通启动不增加偏好或目录重定向参数。

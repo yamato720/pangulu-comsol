@@ -70,19 +70,27 @@ flowchart TD
 
 ## GPU 快照和生命周期
 
-`cudssDataCreate` 同步建立数据对象所拥有的数值后端及一个真实、尚未绑定矩阵的 Pangu handle；worker 在这里启动并完成初始化握手。首次 `cudssExecute` 消费这个 handle，不提前读取矩阵或执行分析。没有执行过矩阵操作的数据对象也会在析构时释放 handle、关闭 worker。后续需要重建分析时，继续使用原有销毁/新建语义，不能复用旧结构的分析结果。
+`cudssDataCreate` 同步建立数据对象所拥有的数值后端及一个真实、尚未绑定矩阵的 Pangu handle；worker 在这里启动并完成初始化握手。首次 `cudssExecute` 消费这个 handle，不提前读取矩阵或执行分析。没有执行过矩阵操作的数据对象也会在析构时释放 handle、关闭 worker。数据对象彼此隔离，不跨对象共享分析或因子状态。
 
 原生 Pangu 调用者同样先创建 handle，再进行分析。因此阶段对照需要对齐这一生命周期，并单独记录 Create/DataCreate 和完整冷启动时间。初始化位置的调整本身不代表减少了总工作；矩阵快照、内容检查、IPC 导入和 Pangu 分析仍计入 Execute。
 
 每次分析或分解都读取实际的调用者数组，不能仅凭 descriptor、设备指针或尺寸重用结构。偏移核先检查完整边界、单调性和可选 ends 连续性；后续核才读取索引及数值。32/64 位索引与零/一起始索引归一化为 32 位 CSR。每一个偏移、索引和 64 位数值字都与上一次自有快照精确比较；结构和数值分别使用递增 epoch，没有哈希相等判断。所有准备和比较仍包含在对应 `cudssExecute` 调用内。
 
-结构变化会释放旧 Pangu 分析状态并重新分析。L2 允许相同结构更新数值后重分解；未请求 L2 时保留原有的重新分析规则。无序 CSR 回到 HOST 的严格规范化路径，重复位置会被拒绝。DEVICE 与 managed 输入只作为复制源，调用者的子分配和偏移地址不会被导出，也不会被数值后端改写。
+L2 的相同结构更新数值后直接重分解。真实结构变化时销毁旧矩阵描述符，再对相同设备、标量类型和矩阵类型的现有 handle 执行完整 ANALYSIS，覆盖旧结构；这已由原始 SDK 的独立变 n/nnz/三角和释放旧输入实验验证。类型、精度、设备、复用策略改变或 native 失败后重建分析，仍创建新 handle。未请求 L2 时保留原有重新分析规则。无序 CSR 回到 HOST 的严格规范化路径，重复位置会被拒绝。HOST 分析回调也逐元素检查并保留未变结构的 epoch，避免重复 CSR→CSC。DEVICE 与 managed 输入只作为复制源，调用者的子分配和偏移地址不会被导出，也不会被数值后端改写。
 
 worker 只打开桥接层 `cudaMalloc` 分配的 CUDA IPC 句柄，不使用另一进程的裸地址。矩阵和 dense 缓冲区分别增长；旧分配保留到后端成功切换后才释放。关闭时先销毁 Pangu 描述符/句柄并关闭 IPC 映射，等待 worker 退出，然后释放导出端内存。CUDA IPC 导出不可用会选择 HOST 路径；导入失败返回真实 CUDA 错误，不自动重复任何数值阶段。
+
+GPU 和 HOST dense 缓冲区按容量增长，不随 RHS 变小重新分配。相同指针、尺寸、类型和 RHS 列数的 Pangu dense 描述符持续复用；实际布局变化才重建描述符。矩阵重新分析不关闭仍有效的 dense IPC 或释放同一数据对象的 dense 容量。频繁的中断注册与兼容诊断仍处理每次请求，但相同说明只记录一次。
 
 RHS 的设备复制完成后才通知数值后端，因为两个进程的 CUDA stream 不共享顺序。后端同步求解完成后响应；桥接层检查输出有限性，完成向调用者的复制后返回。正常数值失败直接上报，不执行隐藏的重新分解、精化或阈值放宽。
 
 `device.cu` 仅链接到 cuDSS 适配库，两种数值后端均使用原始 SDK。构建可通过 `PC_CUDA_COMPILER` 和 `NVCC_CCBIN` 指定 CUDA 12 工具链；sm75/sm80 机器码和 compute75 PTX 覆盖计算能力 7.5 及以上 GPU，更早设备选择 HOST 路径。清单的 `device_csr`、`device_min_compute_capability` 和运行日志记录实际启用状态。只有 gcc/g++ 时仍能构建明确标识的 HOST 回退版本。
+
+## 会话累计计数
+
+每个数据对象销毁时输出 `PGL_BRIDGE_SUMMARY` 与 `PGL_BACKEND_SUMMARY`，用调用进程 PID 和 `data_id` 配对。计数不依赖 profile 编译，每次资源操作仅更新整数；不逐次查询 GPU 内存或记录时间。native 创建、分析、numeric/refactor/solve 和描述符字段统计真实调用，失败阶段单独累计；GPU 分配/释放及 IPC 打开/关闭统计成功操作，清理错误单独记录。
+
+`bridge_device_bytes_live/peak` 只表示桥接层自有设备分配，`backend_buffer_bytes_live/peak` 只表示 HOST 后端的 dense 设备缓冲，不声称包括厂商不透明因子内存。长期 GPU 总内存是否稳定仍由独立 `cudaMemGetInfo`/外部采样检验。正常销毁后两项 live 应为零，创建与销毁/打开与关闭次数应匹配。`handle_reanalyses` 表示保留 handle 后实际再次调用 ANALYSIS，不能等同于结构未变时的 L2 refactor。
 
 ## 边界
 

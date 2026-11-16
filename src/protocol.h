@@ -4,7 +4,7 @@
 #include <sys/socket.h>
 #include <string.h>
 #include <unistd.h>
-#define PGL_BRIDGE_MAGIC UINT64_C(0x50474c4355445334)
+#define PGL_BRIDGE_MAGIC UINT64_C(0x50474c4355445335)
 enum { BR_ANALYZE=1,BR_FACTOR=2,BR_SOLVE=3,BR_CLOSE=4,BR_INITIALIZE=5 };
 /* INITIALIZE uses only device and creates a real, unbound native handle. */
 enum { BR_MEMORY_HOST=0,BR_MEMORY_DEVICE=1,BR_MEMORY_IPC=2 };
@@ -17,7 +17,8 @@ typedef struct {
  uint64_t magic,command,n,nnz,nrhs,value_type,total_bytes,ptr_offset,idx_offset,val_offset,b_offset,x_offset,structure_epoch;
  int32_t device,reuse,matrix_type,matrix_view;
  uint64_t value_epoch,matrix_address,dense_address,matrix_bytes,dense_bytes;
- int32_t memory_space,reserved;
+ int32_t memory_space,client_pid;
+ uint64_t data_id;
  unsigned char matrix_ipc[64],dense_ipc[64];
 } BridgeRequest;
 typedef struct {
