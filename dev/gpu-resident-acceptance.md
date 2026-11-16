@@ -21,6 +21,17 @@ g++ -O2 -std=c++17 -ffunction-sections -fdata-sections -Wl,--gc-sections \
 
 该测试替换 CUDA 分配函数，不加载 CUDA 驱动或执行数值求解；GPU 容量、性能与数值仍须独立验收。
 
+direct 的 OpenMP 加载边界可用纯 CPU 程序复现。先全局加载 COMSOL 的 Intel OpenMP 和 GNU OpenMP，再载入 GNU 编译的任务插件；两个模式必须分别运行在新进程中：
+
+```bash
+g++ -O2 -std=c++17 -shared -fPIC -fopenmp dev/tests/openmp_task_plugin.cpp -o /tmp/pangu-openmp-task.so
+g++ -O2 -std=c++17 dev/tests/openmp_scope_test.cpp -ldl -o /tmp/pangu-openmp-scope
+/tmp/pangu-openmp-scope /path/to/multiphysics/lib/glnxa64/libiomp5.so /tmp/pangu-openmp-task.so local
+/tmp/pangu-openmp-scope /path/to/multiphysics/lib/glnxa64/libiomp5.so /tmp/pangu-openmp-task.so deep
+```
+
+在发生过故障的 COMSOL 6.4 运行库上，`local` 对照会打印 Intel provider、`copies=0 bodies=1 failures=1` 并返回 1；`deep` 必须绑定 GNU provider、`copies=1 bodies=1 failures=0` 并返回 0。该实验不加载 Pangu 或 CUDA；最终还需真实大模型的 direct 数值、完整频点和许可拒绝验收。
+
 ## GPU 正确性和状态
 
 对 direct 和 worker 独立运行，保存原始日志和退出码：
