@@ -80,6 +80,8 @@ L2 的相同结构更新数值后直接重分解。真实结构变化时销毁�
 
 worker 只打开桥接层 `cudaMalloc` 分配的 CUDA IPC 句柄，不使用另一进程的裸地址。矩阵和 dense 缓冲区分别增长；旧分配保留到后端成功切换后才释放。关闭时先销毁 Pangu 描述符/句柄并关闭 IPC 映射，等待 worker 退出，然后释放导出端内存。CUDA IPC 导出不可用会选择 HOST 路径；导入失败返回真实 CUDA 错误，不自动重复任何数值阶段。
 
+矩阵 GPU 分配预留实际长度的 12.5%，总容量不超过 20 GiB；请求的 `matrix_bytes` 始终是实际有效长度，不包含余量。只有预留分配返回显存不足时才回退精确尺寸，并累计 `matrix_reserve_oom_fallbacks`。已有容量内的 nnz 增长不会重新分配或导入 IPC，严格结构检测和真实重分析不受影响。
+
 GPU 和 HOST dense 缓冲区按容量增长，不随 RHS 变小重新分配。相同指针、尺寸、类型和 RHS 列数的 Pangu dense 描述符持续复用；实际布局变化才重建描述符。矩阵重新分析不关闭仍有效的 dense IPC 或释放同一数据对象的 dense 容量。频繁的中断注册与兼容诊断仍处理每次请求，但相同说明只记录一次。
 
 RHS 的设备复制完成后才通知数值后端，因为两个进程的 CUDA stream 不共享顺序。后端同步求解完成后响应；桥接层检查输出有限性，完成向调用者的复制后返回。正常数值失败直接上报，不执行隐藏的重新分解、精化或阈值放宽。
@@ -91,6 +93,8 @@ RHS 的设备复制完成后才通知数值后端，因为两个进程的 CUDA s
 每个数据对象销毁时输出 `PGL_BRIDGE_SUMMARY` 与 `PGL_BACKEND_SUMMARY`，用调用进程 PID 和 `data_id` 配对。计数不依赖 profile 编译，每次资源操作仅更新整数；不逐次查询 GPU 内存或记录时间。native 创建、分析、numeric/refactor/solve 和描述符字段统计真实调用，失败阶段单独累计；GPU 分配/释放及 IPC 打开/关闭统计成功操作，清理错误单独记录。
 
 `bridge_device_bytes_live/peak` 只表示桥接层自有设备分配，`backend_buffer_bytes_live/peak` 只表示 HOST 后端的 dense 设备缓冲，不声称包括厂商不透明因子内存。长期 GPU 总内存是否稳定仍由独立 `cudaMemGetInfo`/外部采样检验。正常销毁后两项 live 应为零，创建与销毁/打开与关闭次数应匹配。`handle_reanalyses` 表示保留 handle 后实际再次调用 ANALYSIS，不能等同于结构未变时的 L2 refactor。
+
+`n_min/max` 和 `nnz_min/max` 来自成功的分析/分解请求；无成功请求时为零。`confirmed_device_pattern_changes` 只计入相邻有效 GPU 快照之间已知的 n/nnz 变化或逐元素结构差异，不将首次快照、HOST/GPU 切换及不可比较状态计为已确认的结构变化。
 
 ## 边界
 

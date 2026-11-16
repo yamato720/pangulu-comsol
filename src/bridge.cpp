@@ -53,6 +53,8 @@ struct BridgeCounts {
  uint64_t worker_starts=0,device_validations=0,host_stages=0,structure_versions=0,value_versions=0;
  uint64_t matrix_allocations=0,dense_allocations=0,status_allocations=0,device_frees=0,cleanup_errors=0;
  uint64_t device_bytes_live=0,device_bytes_peak=0;
+ uint64_t matrix_reserve_oom_fallbacks=0,confirmed_device_pattern_changes=0;
+ uint64_t n_min=0,n_max=0,nnz_min=0,nnz_max=0;
 };
 struct cudssData {PanguBackend *local=nullptr;size_t memory_capacity=0;int socket=-1;pid_t worker=-1;int fd=-1;void *memory=MAP_FAILED;BridgeRequest request={};BridgeResponse last={};int info=0,index_bytes=4;bool analyzed=false,factored=false;const int *interrupt=nullptr;std::map<int,std::vector<unsigned char>> user;
  cudssMatrix_t staged_matrix=nullptr;int staged_device=-1;uint64_t epoch_counter=0;
@@ -93,7 +95,7 @@ static void free_allocations(cudssData_t d,std::vector<DeviceAllocation>&allocat
 static void free_device(cudssData_t d){free_allocations(d,d->retired_matrix);free_allocations(d,d->retired_dense);free_allocation(d,d->device_matrix,d->device_matrix_capacity);free_allocation(d,d->device_dense,d->device_dense_capacity);free_allocation(d,d->device_status,PGL_DEVICE_STATUS_WORDS*sizeof(int));}
 static void data_summary(cudssData_t d){
  const auto &c=d->counts;
- fprintf(stderr,"PGL_BRIDGE_SUMMARY {\"pid\":%d,\"data_id\":%llu,\"execution\":\"%s\",\"analysis_requests\":%llu,\"numeric_requests\":%llu,\"solve_requests\":%llu,\"worker_starts\":%llu,\"device_validations\":%llu,\"host_full_stages\":%llu,\"structure_epochs_created\":%llu,\"device_value_epochs_created\":%llu,\"matrix_allocations\":%llu,\"dense_allocations\":%llu,\"status_allocations\":%llu,\"device_frees\":%llu,\"bridge_device_bytes_live\":%llu,\"bridge_device_bytes_peak\":%llu,\"cleanup_errors\":%llu}\n",getpid(),(unsigned long long)d->data_id,direct_execution()?"direct":"worker",(unsigned long long)c.analysis_requests,(unsigned long long)c.numeric_requests,(unsigned long long)c.solve_requests,(unsigned long long)c.worker_starts,(unsigned long long)c.device_validations,(unsigned long long)c.host_stages,(unsigned long long)c.structure_versions,(unsigned long long)c.value_versions,(unsigned long long)c.matrix_allocations,(unsigned long long)c.dense_allocations,(unsigned long long)c.status_allocations,(unsigned long long)c.device_frees,(unsigned long long)c.device_bytes_live,(unsigned long long)c.device_bytes_peak,(unsigned long long)c.cleanup_errors);
+ fprintf(stderr,"PGL_BRIDGE_SUMMARY {\"pid\":%d,\"data_id\":%llu,\"execution\":\"%s\",\"analysis_requests\":%llu,\"numeric_requests\":%llu,\"solve_requests\":%llu,\"worker_starts\":%llu,\"device_validations\":%llu,\"host_full_stages\":%llu,\"structure_epochs_created\":%llu,\"device_value_epochs_created\":%llu,\"matrix_allocations\":%llu,\"dense_allocations\":%llu,\"status_allocations\":%llu,\"device_frees\":%llu,\"bridge_device_bytes_live\":%llu,\"bridge_device_bytes_peak\":%llu,\"cleanup_errors\":%llu,\"matrix_reserve_oom_fallbacks\":%llu,\"confirmed_device_pattern_changes\":%llu,\"n_min\":%llu,\"n_max\":%llu,\"nnz_min\":%llu,\"nnz_max\":%llu}\n",getpid(),(unsigned long long)d->data_id,direct_execution()?"direct":"worker",(unsigned long long)c.analysis_requests,(unsigned long long)c.numeric_requests,(unsigned long long)c.solve_requests,(unsigned long long)c.worker_starts,(unsigned long long)c.device_validations,(unsigned long long)c.host_stages,(unsigned long long)c.structure_versions,(unsigned long long)c.value_versions,(unsigned long long)c.matrix_allocations,(unsigned long long)c.dense_allocations,(unsigned long long)c.status_allocations,(unsigned long long)c.device_frees,(unsigned long long)c.device_bytes_live,(unsigned long long)c.device_bytes_peak,(unsigned long long)c.cleanup_errors,(unsigned long long)c.matrix_reserve_oom_fallbacks,(unsigned long long)c.confirmed_device_pattern_changes,(unsigned long long)c.n_min,(unsigned long long)c.n_max,(unsigned long long)c.nnz_min,(unsigned long long)c.nnz_max);
 }
 static cudssStatus_t start_worker(cudssData_t d){
  if(d->socket>=0)return CUDSS_STATUS_SUCCESS;
@@ -129,7 +131,11 @@ static cudssStatus_t rpc(cudssData_t d,int command){
  PGL_DETAIL(char timing[768];snprintf(timing,sizeof(timing),"command=%d structure_epoch=%llu roundtrip_seconds=%.9g worker_execute_seconds=%.9g conversion_seconds=%.9g value_update_seconds=%.9g pattern_seconds=%.9g release_seconds=%.9g canonical_nnz=%llu status=%d",command,(unsigned long long)d->request.structure_epoch,elapsed,d->last.analysis_seconds+d->last.factor_seconds+d->last.solve_seconds,d->last.conversion_seconds,d->last.value_update_seconds,d->last.pattern_seconds,d->last.release_seconds,(unsigned long long)d->last.canonical_nnz,d->last.status);log_event("rpc_timing",timing);)
  d->info=d->last.status?d->last.status:0;
  if(d->last.status){fprintf(stderr,"PGL_ERROR status=%d pangulu_status=%d cuda_status=%d command=%d\n",d->last.status,d->last.pangulu_status,d->last.cuda_status,command);return d->last.status==2?CUDSS_STATUS_ALLOC_FAILED:d->last.status==4?CUDSS_STATUS_NOT_SUPPORTED:CUDSS_STATUS_EXECUTION_FAILED;}
- if(command==BR_ANALYZE||command==BR_FACTOR)free_allocations(d,d->retired_matrix);
+ if(command==BR_ANALYZE||command==BR_FACTOR){
+  auto &c=d->counts;c.n_min=c.n_min?std::min(c.n_min,d->request.n):d->request.n;c.n_max=std::max(c.n_max,d->request.n);
+  c.nnz_min=c.nnz_min?std::min(c.nnz_min,d->request.nnz):d->request.nnz;c.nnz_max=std::max(c.nnz_max,d->request.nnz);
+  free_allocations(d,d->retired_matrix);
+ }
  if(command==BR_SOLVE)free_allocations(d,d->retired_dense);
  return CUDSS_STATUS_SUCCESS;
 }
@@ -174,13 +180,22 @@ static bool device_source(const void *p,int device){
 /* The exported allocations belong to this bridge, so IPC never depends on
  * the caller's allocator, suballocation offsets, or address in the worker. */
 static cudssStatus_t allocate_device(cudssData_t d,void **p,size_t *capacity,size_t bytes,
- cudaIpcMemHandle_t *handle,std::vector<DeviceAllocation>&retired,bool &changed,uint64_t &count){
+ cudaIpcMemHandle_t *handle,std::vector<DeviceAllocation>&retired,bool &changed,uint64_t &count,bool reserve_matrix=false){
  changed=false;if(bytes<=*capacity)return CUDSS_STATUS_SUCCESS;
- void *next=nullptr;cudaError_t e=cudaMalloc(&next,bytes);if(e)return CUDSS_STATUS_ALLOC_FAILED;
- count++;count_allocation(d,bytes);
+ const size_t limit=(size_t)(UINT64_C(20)*1024*1024*1024);
+ if(bytes>limit)return CUDSS_STATUS_ALLOC_FAILED;
+ size_t allocation_bytes=reserve_matrix?bytes+std::min(bytes/8,limit-bytes):bytes;
+ void *next=nullptr;cudaError_t e=cudaMalloc(&next,allocation_bytes);
+ /* Keep small nnz growth inside the existing allocation/IPC mapping. Extra
+  * headroom is optional: only an allocation OOM retries the exact request. */
+ if(e==cudaErrorMemoryAllocation&&allocation_bytes>bytes){
+  d->counts.matrix_reserve_oom_fallbacks++;cudaGetLastError();allocation_bytes=bytes;next=nullptr;e=cudaMalloc(&next,allocation_bytes);
+ }
+ if(e)return e==cudaErrorMemoryAllocation?CUDSS_STATUS_ALLOC_FAILED:CUDSS_STATUS_EXECUTION_FAILED;
+ count++;count_allocation(d,allocation_bytes);
  cudaIpcMemHandle_t exported={};
- if(!direct_execution()&&(e=cudaIpcGetMemHandle(&exported,next))!=cudaSuccess){free_allocation(d,next,bytes);cudaGetLastError();return CUDSS_STATUS_NOT_SUPPORTED;}
- if(*p)retired.push_back({*p,*capacity});*p=next;*capacity=bytes;*handle=exported;changed=true;return CUDSS_STATUS_SUCCESS;
+ if(!direct_execution()&&(e=cudaIpcGetMemHandle(&exported,next))!=cudaSuccess){free_allocation(d,next,allocation_bytes);cudaGetLastError();return CUDSS_STATUS_NOT_SUPPORTED;}
+ if(*p)retired.push_back({*p,*capacity});*p=next;*capacity=allocation_bytes;*handle=exported;changed=true;return CUDSS_STATUS_SUCCESS;
 }
 static cudssStatus_t stage_device_matrix(cudssData_t d,cudssHandle_t h,cudssMatrix_t A,bool &used,bool &same){
  used=false;same=false;
@@ -196,7 +211,7 @@ static cudssStatus_t stage_device_matrix(cudssData_t d,cudssHandle_t h,cudssMatr
  q.val_offset=(q.idx_offset+q.nnz*4+63)&~UINT64_C(63);
  q.matrix_bytes=q.val_offset+q.nnz*item(A->valueType);
  bool allocated=false;cudssStatus_t status=allocate_device(d,&d->device_matrix,
-  &d->device_matrix_capacity,q.matrix_bytes,&d->matrix_ipc,d->retired_matrix,allocated,d->counts.matrix_allocations);
+  &d->device_matrix_capacity,q.matrix_bytes,&d->matrix_ipc,d->retired_matrix,allocated,d->counts.matrix_allocations,true);
  if(status==CUDSS_STATUS_NOT_SUPPORTED){log_event("device_fallback","CUDA IPC export unavailable; using validated host transport");return CUDSS_STATUS_SUCCESS;}
  if(status)return status;
  if(!d->device_status){if(cudaMalloc((void**)&d->device_status,PGL_DEVICE_STATUS_WORDS*sizeof(int))!=cudaSuccess)return CUDSS_STATUS_ALLOC_FAILED;d->counts.status_allocations++;count_allocation(d,PGL_DEVICE_STATUS_WORDS*sizeof(int));}
@@ -218,6 +233,8 @@ static cudssStatus_t stage_device_matrix(cudssData_t d,cudssHandle_t h,cudssMatr
  same=compare&&!(flags&PGL_DEVICE_PATTERN_CHANGED);
  q.structure_epoch=same?d->request.structure_epoch:++d->epoch_counter;
  q.value_epoch=compare&&!(flags&PGL_DEVICE_VALUES_CHANGED)?d->request.value_epoch:++d->value_counter;
+ if(d->device_valid&&d->request.memory_space!=BR_MEMORY_HOST&&d->staged_device==h->device&&
+    (d->request.n!=q.n||d->request.nnz!=q.nnz||(compare&&(flags&PGL_DEVICE_PATTERN_CHANGED))))d->counts.confirmed_device_pattern_changes++;
  if(!same)d->counts.structure_versions++;
  if(!compare||(flags&PGL_DEVICE_VALUES_CHANGED))d->counts.value_versions++;
  if(direct_execution())q.matrix_address=(uint64_t)(uintptr_t)d->device_matrix;
