@@ -320,6 +320,9 @@ def comsol_command(session, threads=None, backend='pangu'):
         env = base_env(threads)
         env['LD_LIBRARY_PATH'] = str(pathlib.Path(c['cuda_root']) / 'lib64')
         info = dict(backend=backend, library=str(library), library_sha256=sha(library))
+    elif backend in {'mycudss-direct','mycudss-worker'}:
+        from . import testing
+        output,env,info=testing.environment(backend,threads)
     else:
         raise ValueError('Unknown backend: ' + backend)
     command = [str(pathlib.Path(c['comsol_root']) / 'bin/comsol'), '-cudaroot', c['cuda_root'], '-cudssroot', str(output)]

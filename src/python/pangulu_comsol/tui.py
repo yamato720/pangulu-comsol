@@ -18,6 +18,7 @@ from textual.worker import get_current_worker
 from . import __version__
 from . import cli
 from . import runtime as core
+from . import testing
 
 
 class ActionButton(Button):
@@ -78,6 +79,7 @@ class PanguComsolApp(App[int]):
         ("f5", "show_tab('licences')", "授权"),
         ("f6", "refresh", "刷新"),
         ("f7", "check", "检查"),
+        ("f8", "show_tab('tests')", "测试"),
         ("ctrl+c", "cancel", "取消"),
         ("ctrl+q", "quit", "退出"),
     ]
@@ -183,6 +185,25 @@ class PanguComsolApp(App[int]):
                     with Horizontal(classes="actions"):
                         yield ActionButton("保存选择", id="select-licences", classes="operation-button")
                         yield ActionButton("自动使用全部", id="auto-licences", classes="operation-button")
+            with TabPane("测试",id="tests"):
+                with VerticalScroll():
+                    yield Static("正在读取可选测试组件…",id="test-state",classes="card")
+                    yield Label("测试后端",classes="field-label")
+                    yield Select([(label,name) for name,label in testing.BACKENDS.items()],value="cudss",allow_blank=False,id="test-backend")
+                    yield Label("GUI 模型文件（可留空）",classes="field-label")
+                    yield Input(placeholder="/path/to/model.mph",id="test-model-path")
+                    yield Label("线程数（GUI 留空继承，数值测试留空用 8）",classes="field-label")
+                    yield Input(placeholder="继承原设置 / 数值测试 8",id="test-threads")
+                    yield Static("三个后端均使用原生 NVIDIA cuDSS 数值核心。GUI 中选择 Direct/cuDSS 后计算；模型路径打开工作副本。",classes="helper")
+                    with Horizontal(classes="actions"):
+                        yield ActionButton("启动测试 GUI",id="launch-test",classes="operation-button")
+                        yield ActionButton("构建测试组件",id="build-tests",classes="operation-button")
+                    yield Label("S 档验收工程目录",classes="field-label")
+                    yield Input(placeholder="/path/to/study3-pangulu-s",id="test-project-path")
+                    yield Select([("20 kHz 单频","20000"),("完整 59 频点","all")],value="20000",allow_blank=False,id="test-frequencies")
+                    yield Static("S 档 Study 3 验收复用已有 CFD/Mapping，逐频核对四场、有限性和实际库映射。测试源码与模型单独提供。",classes="helper")
+                    with Horizontal(classes="actions"):
+                        yield ActionButton("运行数值测试",id="benchmark-test",classes="operation-button")
         yield Static("就绪", id="operation")
         yield RichLog(id="activity", max_lines=100, wrap=True, min_width=20)
         yield Static("↑↓ 移动  Enter 操作  空格切换  Esc 页签 · 蓝框/▶ 焦点，✓ 已勾选", id="navigation-hint")
@@ -195,11 +216,13 @@ class PanguComsolApp(App[int]):
         self.refresh_state(reload_forms=True)
         self.call_after_refresh(self.focus_page)
 
-    def focus_page(self):
-        for widget in self.screen.focus_chain:
+    def focus_page(self, name=None):
+        pane=self.query_one('#'+(name or self.query_one('#pages',TabbedContent).active),TabPane)
+        for widget in pane.query('Input, Select, Switch, SelectionList, Button'):
             if isinstance(widget, (Input, Select, Switch, SelectionList, Button)):
-                widget.focus()
-                break
+                if widget.focusable:
+                    self.screen.set_focus(widget)
+                    break
 
     def check_action(self, action, parameters):
         if action in {"navigate", "focus_tabs", "show_tab"}:
@@ -231,7 +254,7 @@ class PanguComsolApp(App[int]):
 
     def action_show_tab(self, name):
         self.query_one("#pages", TabbedContent).active = name
-        self.call_after_refresh(self.focus_page)
+        self.focus_page(name)
 
     def action_refresh(self):
         self.refresh_state()
@@ -261,7 +284,7 @@ class PanguComsolApp(App[int]):
     @work(thread=True, group="refresh", exclusive=True, exit_on_error=False)
     def refresh_state(self, reload_forms=False):
         try:
-            state = {"settings": core.settings(), "package": cli.package_info(), "licences": cli.list_licences(),
+            state = {"settings": core.settings(), "package": cli.package_info(), "licences": cli.list_licences(), "tests":testing.status(),
                      "configured": cli.config_file().is_file()}
         except (OSError, ValueError) as error:
             state = {"error": str(error)}
@@ -289,6 +312,9 @@ class PanguComsolApp(App[int]):
         self.query_one("#overview-state", Static).update(Text(overview))
         sdk_text = f"Pangu SDK：{sdk_label}\n{sdk.get('path', sdk.get('message', ''))}\n运行组件：{module_label}"
         self.query_one("#sdk-state", Static).update(Text(sdk_text))
+        tests=state["tests"]
+        self.query_one("#test-state",Static).update(Text("可选测试组件："+tests["directory"]+"\n"+"\n".join(
+            item["label"]+"："+("可用" if item["available"] else "未就绪") for item in tests["backends"])))
         choices = self.query_one("#licence-list", SelectionList)
         choices.clear_options()
         choices.add_options([(Text(item["name"]), item["name"], item["selected"]) for item in licences])
@@ -361,6 +387,24 @@ class PanguComsolApp(App[int]):
                 if self.query_one("#model-path", Input).value.strip():
                     args.append(self.file_argument("#model-path"))
                 self.request_operation(args, "提交 COMSOL 启动")
+            elif action == "build-tests":
+                self.request_operation(["test","build"],"构建可选测试组件")
+            elif action in {"launch-test","benchmark-test"}:
+                backend=str(self.query_one("#test-backend",Select).value)
+                verb="run" if action=="launch-test" else "benchmark"
+                args=["test",verb,"--backend",backend]
+                count=self.query_one("#test-threads",Input).value.strip()
+                if count:
+                    if not count.isdecimal() or int(count)<1:raise ValueError("线程数须为正整数，或留空")
+                    args += ["--threads",count]
+                if verb=="run":
+                    args.append("--detach")
+                    if self.query_one("#test-model-path",Input).value.strip():args.append(self.file_argument("#test-model-path"))
+                else:
+                    project=pathlib.Path(self.query_one("#test-project-path",Input).value.strip()).expanduser()
+                    if not self.query_one("#test-project-path",Input).value.strip() or not project.is_dir():raise ValueError("请填写有效的 S 档验收工程目录")
+                    args += ["--project",str(project.resolve()),"--frequencies",str(self.query_one("#test-frequencies",Select).value)]
+                self.request_operation(args,"提交测试 GUI 启动" if verb=="run" else "S 档数值测试")
         except (ValueError, OSError) as error:
             self.notify(str(error), severity="error")
             self.record_event(str(error))
@@ -413,7 +457,7 @@ class PanguComsolApp(App[int]):
                         summary = "找到 COMSOL，已填入配置页；保存后生效"
                     else:
                         summary = f"发现 {len(found)} 份安装，详见操作详情"
-                elif args[0] == "run":
+                elif args[0] == "run" or args[:2]==["test","run"]:
                     summary = "COMSOL 启动已提交；进程独立运行，可继续使用菜单"
                 elif args[0] == "doctor":
                     report = json.loads(text)

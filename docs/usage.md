@@ -10,6 +10,18 @@
 
 菜单包含概览、配置、运行、SDK 包和授权页面。F1–F5 切换页面，F6 刷新，F7 检查，Ctrl+C 取消当前操作，Ctrl+Q 退出。SDK 更新和组件构建期间要等待操作完成或取消收尾；COMSOL GUI 独立运行，退出菜单不会关闭已提交的 GUI。
 
+F8 打开可选测试页，手动选择原生 cuDSS、cuDSS 直接封装或 cuDSS worker 封装，可启动测试 GUI 或运行单独提供的 S 数值验收工具。`test status` 查看可用性，`test build [--source 目录]` 构建校准组件；组件位于 `runtime/tests/mycudss/`。测试源码、模型和验收资料单独提供，不随正式应用安装。
+
+```bash
+./pangu-comsol test run --backend mycudss-direct /path/to/model.mph
+./pangu-comsol test benchmark --backend mycudss-worker \
+  --project /path/to/study3-pangulu-s --frequencies all --threads 8 --repeat 2
+```
+
+测试 GUI 的模型路径打开工作副本；在模型中使用 Direct/cuDSS。S 档数值验收求解 Study 3，复用已有 CFD/Mapping，核对完成标记、实际库映射、全部频点、有限性、物理 DOF 与四字段 CPU 参考，结果保存到 `data/runs/test_<后端>_<时间戳>/`。封装使用配置所选的 CUDA 目录，并调用同一份原生 NVIDIA cuDSS，独立于 Pangu SDK 与许可。
+
+直接封装转发已观察的 16 个原生接口；worker 封装目前覆盖单 GPU、一般 full CSR、FP64 实数/复数、单 RHS，取消在阶段之间生效。这是已验证的测试契约，其他矩阵类型与高级模式需单独验证。
+
 ↑↓ 和 Tab / Shift+Tab 在控件间移动，蓝框及按钮上的 `▶` 标出当前焦点；Enter 执行按钮或打开下拉框，空格切换开关或勾选许可。Esc 回到页签，←→ 切换页面；绿色表示当前页面。输入框的 ←→ 保留文本编辑，下拉框打开后 ↑↓ 选择、Enter 确认、Esc 取消。许可列表内 ↑↓ 移动，到首尾后继续移动可离开列表；行焦点不等于勾选，勾选后仍需“保存选择”。
 
 ## 客户使用

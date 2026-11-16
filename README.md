@@ -12,7 +12,7 @@ Pangu–COMSOL 是带交互式终端界面的 CLI 应用，用于配置 COMSOL �
 ./pangu-comsol
 ```
 
-界面提供 **概览、配置、运行、SDK 包、授权** 五个页面，支持鼠标和键盘。F1–F5 切换页面，F6 刷新，F7 检查；Ctrl+C 取消当前操作，Ctrl+Q 退出。操作失败会保留界面，可查看详情后重试。
+界面提供 **概览、配置、运行、SDK 包、授权、测试** 页面，支持鼠标和键盘。F1–F5 切换管理页面，F6 刷新，F7 检查，F8 打开测试；Ctrl+C 取消当前操作，Ctrl+Q 退出。操作失败会保留界面，可查看详情后重试。
 
 ↑↓ 或 Tab / Shift+Tab 移动焦点，Enter 执行按钮或打开下拉框，空格切换开关、勾选许可。Esc 回到页签后可用 ←→ 切换页面。蓝框和按钮上的 `▶` 表示当前焦点；绿色页签表示当前页面，勾选许可后需“保存选择”。下拉框内 ↑↓ 选择、Enter 确认、Esc 取消；许可列表内 ↑↓ 移动，到首尾后继续移动可离开列表。
 
@@ -61,6 +61,7 @@ pangu-comsol run /path/to/model.mph
 | `license add/list/use/auto` | 导入、列出、选择原始许可，或自动使用全部许可 |
 | `status` / `doctor` | 查看状态或执行原生授权与 GPU 检查 |
 | `build` | 从应用自带的正式源码构建接入组件 |
+| `test status/build/run/benchmark` | 查看、构建可选 cuDSS 校准组件，选择后端启动 GUI 或运行单独提供的 S 验收工具 |
 | `inspect/configure/restore` | 查看、配置或恢复模型的求解器引用 |
 
 ## 运行文件
@@ -72,5 +73,21 @@ pangu-comsol run /path/to/model.mph
 GUI 中的 Pangu 选项由用户自行选择，不自动计算或保存。命令行指定模型时打开工作副本；GUI 内直接打开原文件后保存仍会写回原文件，需要保留原件时使用 Save As。
 
 应用沿用 COMSOL 默认或用户已有的偏好、临时、恢复、工作区及配置位置，不创建或重写 `.prefs`。线程数仅在显式指定时覆盖本次运行。
+
+## 可选后端测试
+
+测试页可手动选择原生 `cudss`、`mycudss-direct` 直接封装、`mycudss-worker` 独立进程封装。三者的数值核心均为 COMSOL 随附的 NVIDIA cuDSS；后两者用来校准接口及桥接开销。
+
+```bash
+./pangu-comsol test status
+./pangu-comsol test build
+./pangu-comsol test run --backend mycudss-worker /path/to/model.mph
+./pangu-comsol test benchmark --backend mycudss-direct \
+  --project /path/to/study3-pangulu-s --frequencies all
+```
+
+校准源码和 S 验收工具单独提供，本机开发目录为 `dev/benchmarks/mycudss/`，不纳入正式源码仓库或应用安装包。也可用 `test build --source /path/to/calibration-sources` 指定源码。测试组件独立构建到 `runtime/tests/mycudss/`，运行记录及模型工作副本写入 `data/runs/`，每次会话记录实际原生库、封装库及 worker 路径与哈希。
+
+测试 GUI 内选择 Direct/cuDSS 后计算。数值测试默认先跑 20 kHz，可选 `--frequencies all` 跑完整 59 频点，`--repeat N` 重复运行；需要单独提供对应 S 输入与 CPU 参考模型。没有校准工具时，原生 cuDSS 测试启动仍可使用。
 
 [使用说明](docs/usage.md) · [客户操作](docs/customer-README.txt) · [接入架构](docs/architecture.md) · [配置字段](config/README.md)

@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 from . import runtime as core
+from . import testing
 from . import __version__
 
 VERSION = __version__
@@ -217,6 +218,21 @@ def parser():
     commands.add_parser('status', help='Show module configuration and imported licences')
     commands.add_parser('discover', help='Find local COMSOL installations')
     commands.add_parser('build', help='Build production components from the application sources')
+    test=commands.add_parser('test',help='Select optional cuDSS calibration backends').add_subparsers(dest='action',required=True)
+    test.add_parser('status',help='List native and optional test backends')
+    item=test.add_parser('build',help='Build separately provided local test sources')
+    item.add_argument('--source',type=pathlib.Path,help='Optional mycudss source directory')
+    item=test.add_parser('run',help='Open GUI using a selected test backend')
+    item.add_argument('input',nargs='?',help='Optional MPH model; opens a working copy')
+    item.add_argument('--backend',choices=list(testing.BACKENDS),default='cudss')
+    item.add_argument('--threads',type=int)
+    item.add_argument('--detach',action='store_true')
+    item=test.add_parser('benchmark',help='Run the separately provided S numeric acceptance tools')
+    item.add_argument('--backend',choices=list(testing.BACKENDS),default='cudss')
+    item.add_argument('--project',type=pathlib.Path,required=True)
+    item.add_argument('--frequencies',choices=['20000','all'],default='20000')
+    item.add_argument('--threads',type=int,default=8)
+    item.add_argument('--repeat',type=int,default=1)
     for action in ['inspect', 'configure', 'restore']:
         item = commands.add_parser(action)
         item.add_argument('input')
@@ -273,6 +289,13 @@ def main(argv=None):
         status()
     elif args.command == 'build':
         core.build()
+    elif args.command == 'test':
+        if args.action=='status':display(testing.status())
+        elif args.action=='build':display(testing.build(args.source))
+        elif args.action=='benchmark':return testing.benchmark(args)
+        else:
+            args.cmd='run'
+            return core.launch(args)
     else:
         args.cmd = args.command
         return core.launch(args)

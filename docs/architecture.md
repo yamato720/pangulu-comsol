@@ -11,6 +11,7 @@
 | 终端界面 | `src/python/pangulu_comsol/tui.py` | 页面、后台操作、错误反馈与取消 |
 | 安装与数据目录 | `paths.py`、`pyproject.toml`、`setup.py` | 标准命令入口、独立数据目录、正式构建资源 |
 | 命令与管理 | `src/python/pangulu_comsol/cli.py` | `init`、`config`、`package`、`license` |
+| 可选测试入口 | `src/python/pangulu_comsol/testing.py` | 独立校准组件的构建、校验、后端环境和可选验收工具调度 |
 | 运行与构建 | `src/python/pangulu_comsol/runtime.py` | `launch`、`comsol_command`、`clean_env`、`build` |
 | GUI 选项 | `src/java/PanguDesktop.java` | `start`、空闲时的 `tick` |
 | 模型配置 | `src/java/PanguModule.java` | `targets`、`registerAll`、`apply`、`restore` |
@@ -73,3 +74,5 @@ SDK 完整原件放在 `pangu/` 下唯一发行目录，许可放在根目录 `l
 模组自身的记录放在 `data/runs/comsol_<时间戳>/`，`session.json` 保存后端、实际库路径、SDK 与许可哈希以及启动参数。模型工作副本和批处理输出按命令指定的位置保存。COMSOL 自身的偏好、缓存、临时与恢复文件仍按默认或用户已有设置管理。
 
 终端页面通过独立子进程调用同一 CLI，不在界面线程执行 GPU 检查、解压或编译。COMSOL GUI 使用独立进程和会话日志，终端界面退出不依赖管道维持 GUI。
+
+可选 `test` 入口提供原生 cuDSS、直接转发和独立 worker 转发三个选择；测试数值核心均为原生 NVIDIA cuDSS。测试封装与内部 S 验收代码在单独提供的工具集中，本机位于忽略的 `dev/benchmarks/mycudss/`。`runtime/tests/mycudss/` 保存独立组件及原生库/构建产物哈希，生产 Pangu 组件继续位于 `runtime/module/`。

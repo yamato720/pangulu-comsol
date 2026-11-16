@@ -13,6 +13,8 @@ Linux x86_64 预编译组件的系统库要求以配套组件说明为准。
 从本地源码安装：pipx install .，或在 Python 虚拟环境中 python -m pip install .。
 安装后执行 pangu-comsol 打开终端菜单，F1–F5 切换页面，F6 刷新，F7 检查，
 Ctrl+C 取消当前操作，Ctrl+Q 退出。操作详情可查看具体错误，处理后可重试。
+F8 打开可选测试页，可选择原生 cuDSS、直接封装或 worker 封装。
+校准源码和数值验收工具单独提供，组件位于 runtime/tests/；普通运行不需要它们。
 ↑↓ 或 Tab / Shift+Tab 移动焦点，Enter 操作，空格切换开关或勾选许可。
 蓝框和按钮上的 ▶ 表示当前焦点，绿色页签表示当前页面；焦点不等于许可勾选。
 Esc 回到页签后用 ←→ 切换页面。下拉框打开后 ↑↓ 选择、Enter 确认、Esc 取消。
