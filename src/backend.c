@@ -38,6 +38,9 @@ struct PanguBackend {
  int device_matrix;void *device_ptr,*device_idx,*device_val;
  void *ipc_matrix,*ipc_dense;unsigned char matrix_ipc[64],dense_ipc[64];
  uint64_t value_epoch;
+ /* Created with the owning cuDSS data object, consumed by its first analysis.
+  * It has no matrix, factorization, or borrowed input attached. */
+ pangulu_handle_t ready_handle;
 };
 typedef struct PanguBackend State;
 
@@ -50,9 +53,13 @@ static void release_gpu(State *s){
 }
 static void clear(State *s){
  release_gpu(s);free(s->ptr);free(s->idx);free(s->val);free(s->csr_to_canonical);
+ if(s->ready_handle)pangulu_destroy(s->ready_handle);
  if(s->ipc_matrix)cudaIpcCloseMemHandle(s->ipc_matrix);
  if(s->ipc_dense)cudaIpcCloseMemHandle(s->ipc_dense);
  memset(s,0,sizeof(*s));
+}
+static void clear_matrix(State *s){
+ pangulu_handle_t ready=s->ready_handle;s->ready_handle=NULL;clear(s);s->ready_handle=ready;
 }
 static int union_enabled(void){return 0;}
 static uint64_t union_limit(uint64_t anchor){
@@ -85,12 +92,23 @@ static int phase(State*s,pangulu_phase_t p,double*seconds,BridgeResponse*r,pangu
 #endif
  return r->pangulu_status||r->cuda_status?-1:0;
 }
-static int initialize_analysis(State*s,const BridgeRequest*q,BridgeResponse*r){
- 
+static int create_handle(pangulu_handle_t *handle,const BridgeRequest*q,BridgeResponse*r){
+ PGL_DETAIL(uint64_t begin=pgl_profile_ns();)
  int gpu=0;const char*g=getenv("PC_LICENSED_GPU_INDEX");if(g)gpu=atoi(g);
- r->pangulu_status=(int)pangulu_create(gpu,&s->h);
+ r->pangulu_status=(int)pangulu_create(gpu,handle);
+#if PGL_PROFILE
+ uint64_t end=pgl_profile_ns();
+ fprintf(stderr,"PGL_WORKER_INITIALIZE {\"command\":%llu,\"begin_ns\":%llu,\"end_ns\":%llu,\"create_seconds\":%.9g,\"pangulu_status\":%d}\n",(unsigned long long)q->command,(unsigned long long)begin,(unsigned long long)end,(end-begin)*1e-9,r->pangulu_status);
+#endif
  if(r->pangulu_status){char message[2048]={0};int status=pangulu_license_status(message,sizeof(message)-1);fprintf(stderr,"PGL_LICENSE_ERROR status=%d message=%s\n",status,message);return -1;}
- int device=-1;cudaGetDevice(&device);if(device!=q->device){r->status=4;return -1;}s->device=device;
+ int device=-1;r->cuda_status=(int)cudaGetDevice(&device);
+ if(r->cuda_status){r->status=5;return -1;}
+ if(device!=q->device){r->status=4;return -1;}return 0;
+}
+static int initialize_analysis(State*s,const BridgeRequest*q,BridgeResponse*r){
+ if(s->ready_handle){s->h=s->ready_handle;s->ready_handle=NULL;}
+ else if(create_handle(&s->h,q,r))return -1;
+ s->device=q->device;
  int ordering=1;const char*o=getenv("PC_REORDERING");if(o&&*o){char*end=NULL;long x=strtol(o,&end,10);if(!end||*end||(x!=0&&x!=1)){r->status=3;return -1;}ordering=(int)x;}
  s->ordering=ordering;
  r->pangulu_status=(int)pangulu_config_set(s->h,PANGULU_REORDERING_METHOD,ordering?L1:L0);if(r->pangulu_status)return -1;
@@ -130,7 +148,7 @@ static int load_device_matrix(State*s,const BridgeRequest*q,BridgeResponse*r){
  double t=now();void *memory=NULL;
  if(q->memory_space==BR_MEMORY_IPC){
   if(!s->ipc_matrix||memcmp(s->matrix_ipc,q->matrix_ipc,sizeof(s->matrix_ipc))){
-   clear(s);cudaIpcMemHandle_t handle;memcpy(&handle,q->matrix_ipc,sizeof(handle));
+   clear_matrix(s);cudaIpcMemHandle_t handle;memcpy(&handle,q->matrix_ipc,sizeof(handle));
    r->cuda_status=(int)cudaIpcOpenMemHandle(&s->ipc_matrix,handle,cudaIpcMemLazyEnablePeerAccess);
    if(r->cuda_status){r->status=5;return -1;}
    memcpy(s->matrix_ipc,q->matrix_ipc,sizeof(s->matrix_ipc));
@@ -221,6 +239,11 @@ int pc_backend_dispatch(PanguBackend *s,const BridgeRequest *q,BridgeResponse *r
  if(!s||!q||q->magic!=PGL_BRIDGE_MAGIC){r->status=3;return r->status;}
  r->n=q->n;r->nnz=q->nnz;
  if(q->command==BR_CLOSE){clear(s);return 0;}
+ if(q->command==BR_INITIALIZE){
+  if(s->h||s->ready_handle){r->status=3;return r->status;}
+  if(create_handle(&s->ready_handle,q,r)&&!r->status)r->status=5;
+  r->stage=BR_INITIALIZE;return r->status;
+ }
   if(q->n==0||q->n>INT32_MAX||q->nnz==0||q->nnz>INT32_MAX||(q->nrhs<1||q->nrhs>65536)||q->matrix_type<0||q->matrix_type>4||q->matrix_view<0||q->matrix_view>2||(q->value_type!=1&&q->value_type!=5)||q->memory_space<BR_MEMORY_HOST||q->memory_space>BR_MEMORY_IPC){r->status=3;goto done;}
   uint64_t element=q->value_type==5?16:8,limit=UINT64_C(20)*1024*1024*1024;
   uint64_t dense=q->n*q->nrhs*element;

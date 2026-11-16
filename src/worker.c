@@ -13,6 +13,7 @@ int main(int argc,char **argv){
   if(bridge_receive(socket,&request,sizeof(request),&fd))break;
   if(request.magic!=PGL_BRIDGE_MAGIC){if(fd>=0)close(fd);break;}
   if(request.command==BR_CLOSE){pc_backend_dispatch(state,&request,&response,NULL);bridge_send(socket,&response,sizeof(response),-1);if(fd>=0)close(fd);break;}
+  if(request.command==BR_INITIALIZE){pc_backend_dispatch(state,&request,&response,NULL);if(fd>=0)close(fd);if(bridge_send(socket,&response,sizeof(response),-1))break;continue;}
   struct stat st;
   if(request.memory_space==BR_MEMORY_IPC)pc_backend_dispatch(state,&request,&response,NULL);
   else if(request.memory_space!=BR_MEMORY_HOST)response.status=3;

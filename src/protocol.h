@@ -4,8 +4,9 @@
 #include <sys/socket.h>
 #include <string.h>
 #include <unistd.h>
-#define PGL_BRIDGE_MAGIC UINT64_C(0x50474c4355445333)
-enum { BR_ANALYZE=1,BR_FACTOR=2,BR_SOLVE=3,BR_CLOSE=4 };
+#define PGL_BRIDGE_MAGIC UINT64_C(0x50474c4355445334)
+enum { BR_ANALYZE=1,BR_FACTOR=2,BR_SOLVE=3,BR_CLOSE=4,BR_INITIALIZE=5 };
+/* INITIALIZE uses only device and creates a real, unbound native handle. */
 enum { BR_MEMORY_HOST=0,BR_MEMORY_DEVICE=1,BR_MEMORY_IPC=2 };
 /* HOST: shared normalized CSR (uint64 offsets/int32 indices), then b/x.
  * DEVICE/IPC: bridge-owned device CSR (int32 offsets/indices) and a separate
