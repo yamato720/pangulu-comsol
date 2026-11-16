@@ -138,6 +138,9 @@ static cudssStatus_t read_pattern(cudssData_t d,cudssMatrix_t A,CopyMetrics&copi
 }
 #if PGL_PROFILE
 static void stage_log(cudssData_t d,const char*kind,double started,const CopyMetrics&copies,double pattern_seconds,double comparison_seconds,bool same){
+ if(!strncmp(kind,"device_",7)){
+  char msg[640];snprintf(msg,sizeof(msg),"kind=%s structure_epoch=%llu value_epoch=%llu n=%llu nnz=%llu total_seconds=%.9g validation_and_update_seconds=%.9g status_readback_bytes=%llu same_pattern=%d",kind,(unsigned long long)d->request.structure_epoch,(unsigned long long)d->request.value_epoch,(unsigned long long)d->request.n,(unsigned long long)d->request.nnz,bridge_now()-started,pattern_seconds,(unsigned long long)copies.device_bytes,same?1:0);log_event("matrix_stage_timing",msg);return;
+ }
  char msg[640];snprintf(msg,sizeof(msg),"kind=%s structure_epoch=%llu n=%llu nnz=%llu total_seconds=%.9g copy_seconds=%.9g pattern_read_seconds=%.9g pattern_compare_seconds=%.9g copy_requested_bytes=%llu host_copy_bytes=%llu device_to_host_bytes=%llu same_pattern=%d",kind,(unsigned long long)d->request.structure_epoch,(unsigned long long)d->request.n,(unsigned long long)d->request.nnz,bridge_now()-started,copies.seconds,pattern_seconds,comparison_seconds,(unsigned long long)copies.requested_bytes,(unsigned long long)copies.host_bytes,(unsigned long long)copies.device_bytes,same?1:0);log_event("matrix_stage_timing",msg);
 }
 #else
@@ -175,7 +178,7 @@ static cudssStatus_t stage_device_matrix(cudssData_t d,cudssHandle_t h,cudssMatr
   &d->device_matrix_capacity,q.matrix_bytes,&d->matrix_ipc,d->retired_matrix,allocated);
  if(status==CUDSS_STATUS_NOT_SUPPORTED){log_event("device_fallback","CUDA IPC export unavailable; using validated host transport");return CUDSS_STATUS_SUCCESS;}
  if(status)return status;
- if(!d->device_status&&cudaMalloc((void**)&d->device_status,sizeof(int))!=cudaSuccess)return CUDSS_STATUS_ALLOC_FAILED;
+ if(!d->device_status&&cudaMalloc((void**)&d->device_status,PGL_DEVICE_STATUS_WORDS*sizeof(int))!=cudaSuccess)return CUDSS_STATUS_ALLOC_FAILED;
  bool compare=!allocated&&d->device_valid&&d->request.memory_space!=BR_MEMORY_HOST&&
   d->staged_device==h->device&&d->request.n==q.n&&d->request.nnz==q.nnz&&
   d->request.value_type==q.value_type&&d->request.matrix_type==q.matrix_type&&d->request.matrix_view==q.matrix_view;

@@ -7,7 +7,7 @@ template<class I> __global__ void stage_offsets(const I *starts,const I *ends,
      row+=(int64_t)blockDim.x*gridDim.x){
   int flags=0;int64_t first=starts[row],last=ends?ends[row]:starts[row+1];
   if(first<base||last<first||last>nnz+base||(row==0&&first!=base)||
-     (row==n-1&&last!=nnz+base))flags|=PGL_DEVICE_INVALID|PGL_DEVICE_BAD_OFFSETS;
+     (row==n-1&&last!=nnz+base))flags|=PGL_DEVICE_INVALID;
   if(ends&&row+1<n&&(int64_t)ends[row]!=(int64_t)starts[row+1])
    flags|=PGL_DEVICE_NONCONTIGUOUS;
   if(!(flags&PGL_DEVICE_INVALID)){
@@ -16,6 +16,7 @@ template<class I> __global__ void stage_offsets(const I *starts,const I *ends,
    ptr[row]=begin;
    if(row==n-1){if(compare&&ptr[n]!=end)flags|=PGL_DEVICE_PATTERN_CHANGED;ptr[n]=end;}
   }
+  if(flags&(PGL_DEVICE_INVALID|PGL_DEVICE_NONCONTIGUOUS))atomicOr(status+1,1);
   if(flags)atomicOr(status,flags);
  }
 }
@@ -27,7 +28,9 @@ template<class I> __global__ void stage_offsets(const I *starts,const I *ends,
 template<class I> __global__ void stage_entries(const I *indices,
  const unsigned long long *values,int base,int64_t n,int words,
  const int32_t *ptr,int32_t *idx,unsigned long long *val,int compare,int *status){
- if(*status&(PGL_DEVICE_BAD_OFFSETS|PGL_DEVICE_NONCONTIGUOUS))return;
+ /* This word is finalized by stage_offsets and never written here. Keep it
+  * separate from flags, which other entry blocks may update concurrently. */
+ if(status[1])return;
  int lane=threadIdx.x&31,flags=0;
  for(int64_t row=(blockIdx.x*(int64_t)blockDim.x+threadIdx.x)/32;row<n;
      row+=(int64_t)blockDim.x*gridDim.x/32){
@@ -60,7 +63,7 @@ extern "C" int pgl_device_stage(const void *starts,const void *ends,
  const void *indices,const void *values,int index_bytes,int base,int64_t n,
  int64_t nnz,int value_bytes,int32_t *ptr,int32_t *idx,void *val,int compare,
  int *status_device,int *flags){
- cudaError_t e=cudaMemset(status_device,0,sizeof(int));if(e)return (int)e;
+ cudaError_t e=cudaMemset(status_device,0,PGL_DEVICE_STATUS_WORDS*sizeof(int));if(e)return (int)e;
  int offset_blocks=(int)((n+255)/256);if(offset_blocks>4096)offset_blocks=4096;
  int entry_blocks=(int)((n+7)/8);if(entry_blocks>4096)entry_blocks=4096;
  if(index_bytes==8){
