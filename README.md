@@ -2,7 +2,7 @@
 
 Pangu–COMSOL 是带交互式终端界面的 CLI 应用，用于配置 COMSOL 接入、管理本地 SDK 包与原始许可、检查环境和启动求解。COMSOL 继续负责物理场、网格、组装、外层迭代和后处理。
 
-本仓库仅保留正式源码、安装定义、通用配置及客户说明；测试、内部报告、运行数据和打包工具不纳入 Git。厂商 SDK、许可和 CUDA 运行库另行提供。
+`main` 是交付主分支，保留正式源码、安装定义、通用配置及客户说明。[`develop`](https://github.com/yamato720/pangulu-comsol/tree/develop) 是开发分支，另含 mycudss、测试、性能实验和环境准备工具；这些内容不进入客户安装包。厂商 SDK、许可和 CUDA 运行库另行提供。
 
 ## 交互式终端应用
 
@@ -102,7 +102,7 @@ GUI 中的 Pangu 选项由用户自行选择，不自动计算或保存。命令
   --project /path/to/study3-pangulu-s --frequencies all
 ```
 
-校准源码和 S 验收工具单独提供，本机开发目录为 `dev/benchmarks/mycudss/`，不纳入正式源码仓库或应用安装包。也可用 `test build --source /path/to/calibration-sources` 指定源码。测试组件独立构建到 `runtime/tests/mycudss/`，运行记录及模型工作副本写入 `data/runs/`，每次会话记录实际原生库、封装库及 worker 路径与哈希。
+校准源码和 S 验收工具位于开发分支的 `dev/benchmarks/mycudss/`，不纳入 `main` 或应用安装包。开发端切换到 `develop` 后可直接构建；也可用 `test build --source /path/to/calibration-sources` 指定源码。测试组件独立构建到 `runtime/tests/mycudss/`，运行记录及模型工作副本写入 `data/runs/`，每次会话记录实际原生库、封装库及 worker 路径与哈希。
 
 测试 GUI 内选择 Direct/cuDSS 后计算。数值测试默认先跑 20 kHz，可选 `--frequencies all` 跑完整 59 频点，`--repeat N` 重复运行；需要单独提供对应 S 输入与 CPU 参考模型。没有校准工具时，原生 cuDSS 测试启动仍可使用。
 
