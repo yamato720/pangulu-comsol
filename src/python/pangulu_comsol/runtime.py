@@ -252,6 +252,12 @@ def build():
         includes = ['-I' + str(p / 'include'), '-I' + str(cuda / 'include'), '-I' + str(source)]
         libraries = ['-L' + str(p / 'lib'), '-L' + str(cuda / 'lib64'), '-Wl,--enable-new-dtags', '-Wl,-rpath,$ORIGIN/../cuda/lib64']
         native_libs = [*libraries, '-Wl,--no-as-needed', '-lpangulu', '-lcudart', '-lcublas', '-lcublasLt', '-ldl', '-lm']
+        # This original SDK component is normally dlopened later by Pangu.
+        # Include it in the backend's dependency group so direct DEEPBIND
+        # also covers its GNU OpenMP symbols before that later dlopen.
+        backend_components = [name for name in ['libopensparse_hunyuangraph.so']
+                              if (p / 'lib' / name).is_file()]
+        backend_libs = [*native_libs, *['-l:'+name for name in backend_components]]
         compiler = os.environ.get('PC_CUDA_COMPILER')
         if not compiler:
             candidate = cuda / 'bin/nvcc'
@@ -260,7 +266,7 @@ def build():
         device_flags = ['-DPGL_DEVICE=' + ('1' if compiler else '0')]
         commands = [
             ['gcc', '-O2', '-std=gnu11', *includes, str(source / 'native_license.c'), '-o', str(output / 'native_license'), *native_libs],
-            ['gcc', '-O2', '-std=gnu11', '-shared', '-fPIC', '-DPGL_PROFILE=0', *includes, str(source / 'backend.c'), '-o', str(output / 'libpangu_backend.so'), *native_libs, '-pthread','-Wl,-soname,libpangu_backend.so'],
+            ['gcc', '-O2', '-std=gnu11', '-shared', '-fPIC', '-DPGL_PROFILE=0', *includes, str(source / 'backend.c'), '-o', str(output / 'libpangu_backend.so'), *backend_libs, '-pthread','-Wl,-soname,libpangu_backend.so'],
             ['gcc', '-O2', '-std=gnu11', *includes, str(source / 'worker.c'), '-o', str(output / 'pangulu_worker'), '-L'+str(output),'-lpangu_backend','-Wl,-rpath,$ORIGIN',
              '-Wl,-rpath-link,'+str(p/'lib')+':'+str(cuda/'lib64'),'-pthread'],
             ['g++', '-O2', '-std=c++17', '-shared', '-fPIC', '-DPGL_PROFILE=0', *device_flags, *includes, '-I' + str(source / 'include/cudss'),
@@ -296,6 +302,7 @@ def build():
               files={name: sha(output / name) for name in shipped}, build_sdk_version=sdk_info(p)['version'],
               device_csr=bool(compiler), cuda_compiler=compiler,
               device_min_compute_capability=75 if compiler else None,
+              backend_dependency_components=backend_components,
               source_sha256={'src/' + str(f.relative_to(source)): sha(f) for f in sources}))
         target, previous = module_dir(), pathlib.Path(temp) / 'previous-module'
         if target.exists():

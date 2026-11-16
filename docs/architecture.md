@@ -116,4 +116,6 @@ SDK 完整原件放在 `pangu/` 下唯一发行目录，许可放在根目录 `l
 
 Pangu 的 `--execution worker/direct` 与上述 NVIDIA 校准后端独立，测试页也提供 Pangu 及其执行方式。direct 通过 `dlopen` 在 COMSOL 进程中加载共同后端；不启动 worker。加载使用 `RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND`，让 SDK 的 GNU OpenMP 符号优先绑定自身依赖组，COMSOL 保留原来的 Intel OpenMP 绑定。普通全局优先查找会把 SDK 的 `GOMP_task` 解析到 COMSOL 的 `libiomp5`；已观察到该实现对 `if(0)` 任务未执行 GNU `firstprivate` 复制回调，在大型图分析中导致错误上下文和越界复制。CPU 回归程序独立覆盖这一加载边界，不修改任何厂商库。
 
+DEEPBIND 不会自动传播到 SDK 后续调用的普通 `dlopen`。SDK 包内存在原始 `libopensparse_hunyuangraph.so` 时，构建把它列入后端的显式 `DT_NEEDED` 依赖，使它在最初的依赖优先加载范围内绑定 GNU OpenMP；之后 SDK 的晚加载复用同一原始模块。构建清单的 `backend_dependency_components` 记录这些组件，组件本身、许可和 COMSOL 安装保持原样。
+
 直接模式的启动兼容逻辑位于 `execution.py`，从当前厂商启动器生成仅省略 libjsig 的私有脚本；不写 COMSOL 安装或用户偏好。两种模式共用相同的数值和缓存策略，真实许可校验保持不变。
