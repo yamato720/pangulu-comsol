@@ -8,6 +8,18 @@
 using Z=std::complex<double>;
 static void ck(cudssStatus_t s){if(s)throw std::runtime_error("cuDSS ABI status="+std::to_string((int)s));}
 static void cu(cudaError_t s){if(s)throw std::runtime_error(cudaGetErrorString(s));}
+static void empty_lifecycle(){
+ cudssHandle_t h=nullptr;ck(cudssCreate(&h));
+ for(int i=0;i<3;i++){cudssData_t d=nullptr;ck(cudssDataCreate(h,&d));ck(cudssDataDestroy(h,d));}
+ ck(cudssDestroy(h));puts("ADAPTER_EMPTY_LIFECYCLE_PASS");
+}
+static void failed_initialization(){
+ cudssHandle_t h=nullptr;cudssData_t d=nullptr;ck(cudssCreate(&h));
+ cudssStatus_t status=cudssDataCreate(h,&d);
+ if(status==CUDSS_STATUS_SUCCESS){ck(cudssDataDestroy(h,d));ck(cudssDestroy(h));throw std::runtime_error("Expected initialization failure");}
+ if(d)throw std::runtime_error("Failed DataCreate must clear its output pointer");
+ ck(cudssDestroy(h));puts("ADAPTER_INIT_FAILURE_CLEANUP_PASS");
+}
 struct DeviceBuffer {
  void *p=nullptr;
  DeviceBuffer(bool enabled,const void *source,size_t bytes){if(enabled){cu(cudaMalloc(&p,bytes));cu(cudaMemcpy(p,source,bytes,cudaMemcpyHostToDevice));}}
@@ -41,4 +53,4 @@ template<class V> void test(const char*name,cudssMatrixType_t type,bool lower,bo
  int transpose=1;if(cudssConfigSet(config,CUDSS_CONFIG_SOLVE_MODE,&transpose,sizeof(transpose))!=CUDSS_STATUS_NOT_SUPPORTED)throw std::runtime_error("Transpose must be rejected");
  ck(cudssMatrixDestroy(X));ck(cudssMatrixDestroy(B));ck(cudssMatrixDestroy(A));ck(cudssDataDestroy(h,data));ck(cudssConfigDestroy(config));ck(cudssDestroy(h));
 }
-int main(){try{for(bool device:{false,true}){test<double>("real-general",CUDSS_MTYPE_GENERAL,false,false,device);test<Z>("complex-general",CUDSS_MTYPE_GENERAL,false,true,device);test<double>("SPD-lower",CUDSS_MTYPE_SPD,true,false,device);test<Z>("HPD-lower",CUDSS_MTYPE_HPD,true,true,device);}puts("ADAPTER_TEST_PASS");return 0;}catch(const std::exception&e){fprintf(stderr,"%s\n",e.what());return 1;}}
+int main(int argc,char **argv){try{if(argc==2&&std::string(argv[1])=="--expect-init-failure"){failed_initialization();return 0;}if(argc!=1)throw std::runtime_error("Unexpected argument");empty_lifecycle();for(bool device:{false,true}){test<double>("real-general",CUDSS_MTYPE_GENERAL,false,false,device);test<Z>("complex-general",CUDSS_MTYPE_GENERAL,false,true,device);test<double>("SPD-lower",CUDSS_MTYPE_SPD,true,false,device);test<Z>("HPD-lower",CUDSS_MTYPE_HPD,true,true,device);}puts("ADAPTER_TEST_PASS");return 0;}catch(const std::exception&e){fprintf(stderr,"%s\n",e.what());return 1;}}

@@ -19,14 +19,19 @@
 - 32/64 位索引、base-one、独立 ends、managed、allocation-offset 和 HOST 稀疏加 DEVICE dense；descriptor 销毁后重建不能绕过内容检查。
 - 无序合法 CSR 保持正确；重复位置、越界索引、下降/越界 rowptr 被拒绝。随后修复原数组可继续分析和求解。
 - 比较调用前后的原始 CSR/values/RHS，确认输入未被改写。
+- 创建并销毁从未分析矩阵的数据对象，确认提前创建的 native handle 和 worker 正常释放；初始化失败时输出 data 指针为空且子进程退出。
 - 变更 n/nnz、实复类型和 RHS 列数，验证设备分配增长、旧 IPC 关闭和析构。批量 RHS 可用对角矩阵 `n=8192, nrhs=512`，在 2/512 列之间切换并交替 RHS 内容。
 - 对小契约测试运行 compute-sanitizer memcheck，检查非法 rowptr 在读取 entries 前被拒绝。
+
+失败清理可用 `adapter_test --expect-init-failure`，在独立进程内显式指向不存在的原始许可路径；应保留真实的 `PGL_LICENSE_ERROR`，正常结束测试并输出 `ADAPTER_INIT_FAILURE_CLEANUP_PASS`。不要替换或修改任何现有许可文件。
 
 ## 性能边界
 
 在同一 GPU 分配、相同软件线程数下，以原样矩阵/RHS/参考解对比 native Pangu GPU CSC/CSR32、正式 direct、正式 worker 和原生 cuDSS。首次 core 包含 analysis、numeric 和相同的 solve；steady factor 使用相同 L2 原地值更新。每项至少三个独立进程，分别保存每阶段与总 wall time。
 
 调用者构造/上传、组件加载、冷启动和首次准备分别报告。不能把本实现新增的快照、校验、IPC 打开或 dense 复制从 `cudssExecute` 边界剔除。profile 中 GPU 矩阵阶段报告融合的 `validation_and_update_seconds`、四字节状态回读，以及严格结构是否匹配；没有测量的新位置数量不报告。
+
+原生 `pangulu_create` 在 analysis 之前执行；桥接的对应资源由 `cudssDataCreate` 同步建立。对照必须额外测量 Create/DataCreate、API 创建到首次物理解的完整延迟及进程总 wall time，并保留改动前版本的对照。`data_create_timing` 和 `PGL_WORKER_INITIALIZE` 只在 profile 构建中记录真实资源创建耗时。不得把阶段时间的减少直接描述为同幅度的冷启动提速。
 
 百万阶数据至少核对物理 RHS 残差、原 MUMPS 参考解和已知解多 RHS；保留既有验收阈值。实测接近原生的结论只能绑定对应矩阵、GPU、线程配置和提交。
 
