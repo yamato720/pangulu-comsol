@@ -10,13 +10,28 @@ from datetime import datetime
 from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Footer, Header, Input, Label, RichLog, Select, SelectionList, Static, Switch, TabbedContent, TabPane
+from textual.widgets import Button, Footer, Header, Input, Label, OptionList, RichLog, Select, SelectionList, Static, Switch, TabbedContent, TabPane, Tabs
 from textual.worker import get_current_worker
 from . import __version__
 from . import cli
 from . import runtime as core
+
+
+class ActionButton(Button):
+    """Mark the actual focus independently of a button's purpose."""
+
+    def __init__(self, label, **kwargs):
+        self.title = label
+        super().__init__("  " + label, **kwargs)
+
+    def on_focus(self):
+        self.label = "▶ " + self.title
+
+    def on_blur(self):
+        self.label = "  " + self.title
 
 
 class Details(ModalScreen[None]):
@@ -35,7 +50,7 @@ class Details(ModalScreen[None]):
         with Vertical(id="details-box"):
             yield Label("上次操作详情")
             yield RichLog(id="details-log", wrap=True, min_width=20)
-            yield Button("关闭", id="close-details")
+            yield ActionButton("关闭", id="close-details")
 
     def on_mount(self):
         self.query_one("#details-log", RichLog).write(Text(self.output or "暂无操作输出"))
@@ -53,6 +68,9 @@ class PanguComsolApp(App[int]):
     TITLE = "Pangu–COMSOL"
     SUB_TITLE = "配置 · SDK 包 · 授权 · 运行"
     BINDINGS = [
+        Binding("up", "navigate(-1)", "上移", show=False, priority=True),
+        Binding("down", "navigate(1)", "↑↓ 移动", priority=True),
+        Binding("escape", "focus_tabs", "页签", show=False, priority=True),
         ("f1", "show_tab('overview')", "概览"),
         ("f2", "show_tab('configuration')", "配置"),
         ("f3", "show_tab('launch')", "运行"),
@@ -69,17 +87,27 @@ class PanguComsolApp(App[int]):
     #pages { height: 1fr; min-height: 10; }
     TabPane { padding: 1 2; }
     VerticalScroll { height: 1fr; }
-    .card { height: auto; padding: 1; border: round $primary; margin-bottom: 1; }
+    .card { height: auto; padding: 1; border: round $border-blurred; margin-bottom: 1; }
     .helper { height: auto; color: $text-muted; margin: 0 0 1 0; }
     .field-label { height: 1; }
     Input, Select { margin-bottom: 1; }
     .actions { height: auto; min-height: 3; margin: 1 0; }
     .actions Button { width: auto; min-width: 14; margin-right: 1; }
+    ActionButton { background: $surface-lighten-1; border: tall $border-blurred; }
+    ActionButton:focus { background: #2563eb; color: #ffffff; border: tall #93c5fd; text-style: bold; }
+    Input:focus, Switch:focus, Select:focus > SelectCurrent { border: tall #93c5fd; }
+    Tab.-active { color: $success; text-style: bold; }
+    Tabs:focus Tab.-active { background: #2563eb; color: #ffffff; }
+    Underline > .underline--bar { color: $success; }
     .switch-row { height: 3; align-vertical: middle; }
     .switch-row Label { width: 1fr; padding-top: 1; }
     #licence-list { height: 7; margin-bottom: 1; }
+    #licence-list > .option-list--option-highlighted { background: $surface; }
+    #licence-list:focus { border: tall #93c5fd; }
+    #licence-list:focus > .option-list--option-highlighted { background: #2563eb; color: #ffffff; }
+    #navigation-hint { height: auto; max-height: 2; padding: 0 1; color: $text-muted; }
     #operation { height: 1; padding: 0 1; color: $accent; }
-    #activity { height: 5; min-height: 3; border-top: solid $primary; margin: 0 1; }
+    #activity { height: 5; min-height: 3; border-top: solid $border-blurred; margin: 0 1; }
     """
 
     def __init__(self):
@@ -100,11 +128,11 @@ class PanguComsolApp(App[int]):
                     yield Static("正在读取安装状态…", id="overview-state", classes="card")
                     yield Static("首次使用：初始化配置 → 导入本地 SDK → 导入原始许可 → 检查 → 启动 COMSOL。", classes="helper")
                     with Horizontal(classes="actions"):
-                        yield Button("初始化配置", id="initialize", variant="primary", classes="operation-button")
-                        yield Button("检查环境", id="check", classes="operation-button")
-                        yield Button("刷新", id="refresh")
+                        yield ActionButton("初始化配置", id="initialize", classes="operation-button")
+                        yield ActionButton("检查环境", id="check", classes="operation-button")
+                        yield ActionButton("刷新", id="refresh")
                     with Horizontal(classes="actions"):
-                        yield Button("操作详情", id="details")
+                        yield ActionButton("操作详情", id="details")
             with TabPane("配置", id="configuration"):
                 with VerticalScroll():
                     yield Label("COMSOL 安装目录（留空自动查找）", classes="field-label")
@@ -116,8 +144,8 @@ class PanguComsolApp(App[int]):
                         yield Switch(True, id="global-options")
                     yield Static("只修改本模块配置；COMSOL 的偏好、临时、恢复和工作区设置保持原有行为。", classes="helper")
                     with Horizontal(classes="actions"):
-                        yield Button("保存配置", id="save-config", variant="primary", classes="operation-button")
-                        yield Button("查找 COMSOL", id="discover", classes="operation-button")
+                        yield ActionButton("保存配置", id="save-config", classes="operation-button")
+                        yield ActionButton("查找 COMSOL", id="discover", classes="operation-button")
             with TabPane("运行", id="launch"):
                 with VerticalScroll():
                     yield Label("模型文件（可留空）", classes="field-label")
@@ -128,7 +156,7 @@ class PanguComsolApp(App[int]):
                     yield Input(placeholder="继承原有设置", id="threads")
                     yield Static("COMSOL 会独立运行，启动提交后可继续使用菜单。带模型路径时打开工作副本；在 COMSOL 中选择 Pangu 后计算。", classes="helper")
                     with Horizontal(classes="actions"):
-                        yield Button("启动 COMSOL", id="launch-gui", variant="primary", classes="operation-button")
+                        yield ActionButton("启动 COMSOL", id="launch-gui", classes="operation-button")
             with TabPane("SDK 包", id="packages"):
                 with VerticalScroll():
                     yield Static("正在读取 SDK…", id="sdk-state", classes="card")
@@ -136,11 +164,11 @@ class PanguComsolApp(App[int]):
                     yield Input(placeholder="/path/to/pangulu-release.tar.gz", id="package-path")
                     yield Static("仅导入本地原包，不内置下载网址。更新会先校验，再整体替换 SDK；许可、配置和运行结果保留。", classes="helper")
                     with Horizontal(classes="actions"):
-                        yield Button("首次导入", id="install-sdk", variant="primary", classes="operation-button")
-                        yield Button("更新已有 SDK", id="update-sdk", classes="operation-button")
+                        yield ActionButton("首次导入", id="install-sdk", classes="operation-button")
+                        yield ActionButton("更新已有 SDK", id="update-sdk", classes="operation-button")
                     yield Static("配套组件未提供时，可用已安装的 CUDA 开发头文件、gcc/g++ 和 COMSOL 构建运行组件。", classes="helper")
                     with Horizontal(classes="actions"):
-                        yield Button("构建运行组件", id="build-module", classes="operation-button")
+                        yield ActionButton("构建运行组件", id="build-module", classes="operation-button")
             with TabPane("授权", id="licences"):
                 with VerticalScroll():
                     yield Label("原始许可文件", classes="field-label")
@@ -149,21 +177,61 @@ class PanguComsolApp(App[int]):
                         yield Label("替换目录中不同内容的同名原件")
                         yield Switch(False, id="replace-licence")
                     with Horizontal(classes="actions"):
-                        yield Button("导入许可", id="import-licence", variant="primary", classes="operation-button")
+                        yield ActionButton("导入许可", id="import-licence", classes="operation-button")
                     yield SelectionList[str](id="licence-list")
                     yield Static("勾选后保存选择，或使用全部许可。文件内容保持原样，授权由厂商 SDK 校验。", classes="helper")
                     with Horizontal(classes="actions"):
-                        yield Button("保存选择", id="select-licences", classes="operation-button")
-                        yield Button("自动使用全部", id="auto-licences", classes="operation-button")
+                        yield ActionButton("保存选择", id="select-licences", classes="operation-button")
+                        yield ActionButton("自动使用全部", id="auto-licences", classes="operation-button")
         yield Static("就绪", id="operation")
         yield RichLog(id="activity", max_lines=100, wrap=True, min_width=20)
+        yield Static("↑↓ 移动  Enter 操作  空格切换  Esc 页签 · 蓝框/▶ 焦点，✓ 已勾选", id="navigation-hint")
         yield Footer()
 
     def on_mount(self):
+        for scroll in self.query(VerticalScroll):
+            scroll.can_focus = False
+        self.query_one("#activity", RichLog).can_focus = False
         self.refresh_state(reload_forms=True)
+        self.call_after_refresh(self.focus_page)
+
+    def focus_page(self):
+        for widget in self.screen.focus_chain:
+            if isinstance(widget, (Input, Select, Switch, SelectionList, Button)):
+                widget.focus()
+                break
+
+    def check_action(self, action, parameters):
+        if action in {"navigate", "focus_tabs", "show_tab"}:
+            if isinstance(self.screen, ModalScreen):
+                return False
+            # An open dropdown owns its arrows and Escape until it is closed.
+            if any(select.expanded for select in self.query(Select)):
+                return False
+        if action == "navigate":
+            focused = self.focused
+            if isinstance(focused, SelectionList):
+                if not focused.option_count:
+                    return True
+                boundary = 0 if parameters[0] < 0 else focused.option_count - 1
+                return focused.highlighted == boundary
+            if isinstance(focused, OptionList):
+                return False
+        return super().check_action(action, parameters)
+
+    def action_navigate(self, direction):
+        selector = "Tabs, Input, Select, Switch, SelectionList, Button"
+        if direction < 0:
+            self.screen.focus_previous(selector)
+        else:
+            self.screen.focus_next(selector)
+
+    def action_focus_tabs(self):
+        self.query_one(Tabs).focus()
 
     def action_show_tab(self, name):
         self.query_one("#pages", TabbedContent).active = name
+        self.call_after_refresh(self.focus_page)
 
     def action_refresh(self):
         self.refresh_state()
