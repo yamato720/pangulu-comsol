@@ -252,13 +252,31 @@ def build():
         includes = ['-I' + str(p / 'include'), '-I' + str(cuda / 'include'), '-I' + str(source)]
         libraries = ['-L' + str(p / 'lib'), '-L' + str(cuda / 'lib64'), '-Wl,--enable-new-dtags', '-Wl,-rpath,$ORIGIN/../cuda/lib64']
         native_libs = [*libraries, '-Wl,--no-as-needed', '-lpangulu', '-lcudart', '-lcublas', '-lcublasLt', '-ldl', '-lm']
+        compiler = os.environ.get('PC_CUDA_COMPILER')
+        if not compiler:
+            candidate = cuda / 'bin/nvcc'
+            compiler = str(candidate) if candidate.is_file() else shutil.which('nvcc')
+        device_objects = [str(output / 'device.o')] if compiler else []
+        device_flags = ['-DPGL_DEVICE=' + ('1' if compiler else '0')]
         commands = [
             ['gcc', '-O2', '-std=gnu11', *includes, str(source / 'native_license.c'), '-o', str(output / 'native_license'), *native_libs],
             ['gcc', '-O2', '-std=gnu11', '-shared', '-fPIC', '-DPGL_PROFILE=0', *includes, str(source / 'backend.c'), '-o', str(output / 'libpangu_backend.so'), *native_libs, '-pthread','-Wl,-soname,libpangu_backend.so'],
             ['gcc', '-O2', '-std=gnu11', *includes, str(source / 'worker.c'), '-o', str(output / 'pangulu_worker'), '-L'+str(output),'-lpangu_backend','-Wl,-rpath,$ORIGIN',
              '-Wl,-rpath-link,'+str(p/'lib')+':'+str(cuda/'lib64'),'-pthread'],
-            ['g++', '-O2', '-std=c++17', '-shared', '-fPIC', '-DPGL_PROFILE=0', *includes, '-I' + str(source / 'include/cudss'),
-             str(source / 'bridge.cpp'), '-o', str(output / 'libcudss.so.0.7.1'), *libraries, '-lcudart','-ldl', '-Wl,-soname,libcudss.so.0']]
+            ['g++', '-O2', '-std=c++17', '-shared', '-fPIC', '-DPGL_PROFILE=0', *device_flags, *includes, '-I' + str(source / 'include/cudss'),
+             str(source / 'bridge.cpp'), *device_objects, '-o', str(output / 'libcudss.so.0.7.1'), *libraries, '-lcudart','-ldl', '-Wl,-soname,libcudss.so.0']]
+        if compiler:
+            # Use the compiler's matching CUDA headers for kernels. PTX keeps
+            # the bridge usable on later GPUs without encoding a local GPU.
+            host_compiler = os.environ.get('NVCC_CCBIN')
+            host_flags = ['-ccbin', host_compiler] if host_compiler else []
+            # The kernel translation unit needs no GNU extensions. In
+            # particular, avoid exposing newer glibc C23 math declarations
+            # that collide with CUDA 12's host/device declarations.
+            commands.insert(0, [compiler, *host_flags, '-U_GNU_SOURCE', '-D_DEFAULT_SOURCE',
+                '-O2', '-std=c++17', '-Xcompiler=-fPIC',
+                '-gencode=arch=compute_80,code=[sm_80,compute_80]', '-I'+str(source),
+                '-c', str(source/'device.cu'), '-o', device_objects[0]])
         with (output / 'build.log').open('w') as log:
             try:
                 for command in commands:
@@ -272,9 +290,10 @@ def build():
             (output / name).symlink_to('libcudss.so.0.7.1')
         build_java(output)
         shipped = ['native_license', 'pangulu_worker', 'libpangu_backend.so','libcudss.so.0.7.1', 'PanguModule.jar', 'PanguDesktop.jar']
-        sources = [*java_sources(), *source.glob('*.c'), *source.glob('*.cpp'), *source.glob('*.h')]
+        sources = [*java_sources(), *source.glob('*.c'), *source.glob('*.cpp'), *source.glob('*.cu'), *source.glob('*.h')]
         write(output / 'manifest.json', dict(module_version='0.4.0', pangu_abi=MODULE_ABI, comsol_series='6.4', cudss_abi='0.7.1',execution_modes=['worker','direct'],
               files={name: sha(output / name) for name in shipped}, build_sdk_version=sdk_info(p)['version'],
+              device_csr=bool(compiler), cuda_compiler=compiler,
               source_sha256={'src/' + str(f.relative_to(source)): sha(f) for f in sources}))
         target, previous = module_dir(), pathlib.Path(temp) / 'previous-module'
         if target.exists():

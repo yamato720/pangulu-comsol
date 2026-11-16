@@ -73,6 +73,8 @@ pangu-comsol run --execution direct /path/to/model.mph
 
 配套接入组件已预编译时可直接运行。仅有源码时，需要 gcc/g++、CUDA 12.9 开发头文件与库、COMSOL 6.4，再执行 `pangu-comsol build`。安装后的应用也带有必要的正式构建源码，不依赖开发工作区。
 
+GPU CSR 快路径另需 CUDA 12 的 `nvcc` 和其支持的 C++ 编译器。构建会使用 `PC_CUDA_COMPILER`、配置的 CUDA 目录下 `bin/nvcc`，或 PATH 中的 `nvcc`；`NVCC_CCBIN` 可指定兼容的主机 C++ 编译器。没有 `nvcc` 时仍可构建 HOST 回退版本。`runtime/module/manifest.json` 的 `device_csr` 字段和启动日志会明确记录是否启用了 GPU 路径。
+
 GUI 中的 Pangu 选项由用户自行选择，不自动计算或保存。命令行指定模型时打开工作副本；GUI 内直接打开原文件后保存仍会写回原文件，需要保留原件时使用 Save As。
 
 应用沿用 COMSOL 默认或用户已有的偏好、临时、恢复、工作区及配置位置，不创建或重写 `.prefs`。线程数仅在显式指定时覆盖本次运行。
@@ -88,7 +90,9 @@ GUI 中的 Pangu 选项由用户自行选择，不自动计算或保存。命令
   --project /path/to/study3-pangulu-s --frequencies all
 ```
 
-两种方式共用 `src/backend.c` 的 CSR→CSC、严格结构检查、分析、分解和回代实现。直接模式使用可复用的进程内暂存区，省去 socket/memfd；矩阵转换和向量暂存仍保留，因此不代表整条通路零拷贝。
+两种方式共用 `src/backend.c` 的分析、分解和回代实现。GPU 上有序且无重复的 CSR 经 GPU 完整校验和逐元素比较后，保留在桥接层自己的 GPU 缓冲区，直接交给 Pangu 的原生 CSR 接口；32/64 位和零/一起始索引会归一化。每次分解都会检查实际结构和数值内容，结构变化会重新分析。direct 直接使用这些缓冲区，worker 通过 CUDA IPC 打开它们；跨进程不传递可解引用的设备地址。RHS 和解也复用独立 GPU 缓冲区。
+
+HOST、混合内存和无序 CSR 保留严格的 HOST 规范化路径；CUDA IPC 导出不可用时，worker 使用 HOST 传输。调用者数组不会被改写。HOST 路径仍需要 CSR→CSC，GPU 路径仍有设备内快照和 RHS/解复制，各阶段准备成本包含在对应的 cuDSS 调用内。
 
 原始 SDK 在 COMSOL 预加载 `libjsig` 时会拒绝初始化。直接模式从本机 COMSOL 脚本生成 `runtime/launchers/comsol-direct`，只取消这一次启动的 `libjsig` 预加载；原始 SDK、许可和 COMSOL 安装不改，仍要求真实授权通过。该方式的信号预加载条件与标准启动不同，已验证的 GUI/数值场景见验收记录；默认 worker 保留标准启动。普通启动不增加偏好或目录重定向参数。
 

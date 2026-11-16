@@ -4,6 +4,7 @@
 #include "protocol.h"
 #include "profile.h"
 #include "backend.h"
+#include "device.h"
 #include <dlfcn.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
@@ -22,6 +23,7 @@
 #include <new>
 #include <time.h>
 extern char **environ;
+static_assert(sizeof(cudaIpcMemHandle_t)==64,"CUDA IPC handle ABI differs from bridge protocol");
 static bool direct_execution(){static bool direct=[](){const char *mode=getenv("PC_EXECUTION");return mode&&strcmp(mode,"direct")==0;}();return direct;}
 struct LocalApi {
  void *library=nullptr;PanguBackend *(*create)(void)=nullptr;
@@ -47,6 +49,10 @@ struct cudssMatrix {bool sparse=false;int64_t rows=0,cols=0,nnz=0,ld=0;void *sta
 struct cudssData {PanguBackend *local=nullptr;size_t memory_capacity=0;int socket=-1;pid_t worker=-1;int fd=-1;void *memory=MAP_FAILED;BridgeRequest request={};BridgeResponse last={};int info=0,index_bytes=4;bool analyzed=false,factored=false;const int *interrupt=nullptr;std::map<int,std::vector<unsigned char>> user;
  cudssMatrix_t staged_matrix=nullptr;int staged_device=-1;uint64_t epoch_counter=0;
  std::vector<uint64_t> scratch_ptr;std::vector<int32_t> scratch_idx;
+ void *device_matrix=nullptr,*device_dense=nullptr;int *device_status=nullptr;
+ size_t device_matrix_capacity=0,device_dense_capacity=0;
+ cudaIpcMemHandle_t matrix_ipc={},dense_ipc={};bool device_valid=false;
+ uint64_t value_counter=0;std::vector<void*> retired_matrix,retired_dense;
 };
 static void log_event(const char *event,const char *detail=""){char b[1024];int n=snprintf(b,sizeof(b),"PGL_BRIDGE {\"event\":\"%s\",\"pid\":%d,\"backend\":\"%s\",\"detail\":\"%s\"}\n",event,getpid(),direct_execution()?"pangulu_direct":"pangulu_worker",detail);if(n>0)write(STDERR_FILENO,b,std::min((size_t)n,sizeof(b)-1));}
 #define bridge_now() PGL_NOW()
@@ -72,6 +78,8 @@ static cudssStatus_t put_bytes(void*p,const void*in,size_t n){
  memcpy(p,in,n);return CUDSS_STATUS_SUCCESS;
 }
 static void unmap(cudssData_t d){if(d->memory!=MAP_FAILED){if(direct_execution())free(d->memory);else munmap(d->memory,d->request.total_bytes);}if(d->fd>=0)close(d->fd);d->memory=MAP_FAILED;d->fd=-1;d->memory_capacity=0;}
+static void free_allocations(std::vector<void*>&allocations){for(void *p:allocations)cudaFree(p);allocations.clear();}
+static void free_device(cudssData_t d){free_allocations(d->retired_matrix);free_allocations(d->retired_dense);if(d->device_matrix)cudaFree(d->device_matrix);if(d->device_dense)cudaFree(d->device_dense);if(d->device_status)cudaFree(d->device_status);}
 static cudssStatus_t start_worker(cudssData_t d){
  if(d->socket>=0)return CUDSS_STATUS_SUCCESS;
  const char *worker=getenv("PC_WORKER");if(!worker||!*worker){log_event("error","PC_WORKER is required");return CUDSS_STATUS_NOT_INITIALIZED;}
@@ -102,6 +110,8 @@ static cudssStatus_t rpc(cudssData_t d,int command){
  PGL_DETAIL(char timing[768];snprintf(timing,sizeof(timing),"command=%d structure_epoch=%llu roundtrip_seconds=%.9g worker_execute_seconds=%.9g conversion_seconds=%.9g value_update_seconds=%.9g pattern_seconds=%.9g release_seconds=%.9g canonical_nnz=%llu status=%d",command,(unsigned long long)d->request.structure_epoch,elapsed,d->last.analysis_seconds+d->last.factor_seconds+d->last.solve_seconds,d->last.conversion_seconds,d->last.value_update_seconds,d->last.pattern_seconds,d->last.release_seconds,(unsigned long long)d->last.canonical_nnz,d->last.status);log_event("rpc_timing",timing);)
  d->info=d->last.status?d->last.status:0;
  if(d->last.status){fprintf(stderr,"PGL_ERROR status=%d pangulu_status=%d cuda_status=%d command=%d\n",d->last.status,d->last.pangulu_status,d->last.cuda_status,command);return d->last.status==2?CUDSS_STATUS_ALLOC_FAILED:d->last.status==4?CUDSS_STATUS_NOT_SUPPORTED:CUDSS_STATUS_EXECUTION_FAILED;}
+ if(command==BR_ANALYZE||command==BR_FACTOR)free_allocations(d->retired_matrix);
+ if(command==BR_SOLVE)free_allocations(d->retired_dense);
  return CUDSS_STATUS_SUCCESS;
 }
 static bool diagnostic_compat(){const char*p=getenv("PC_COMSOL_DIAGNOSTICS");return p&&strcmp(p,"1")==0;}
@@ -109,6 +119,7 @@ static cudssStatus_t diagnostic_copy(void*out,size_t bytes,size_t*w,const void*s
 static cudssStatus_t validate_sparse(cudssMatrix_t A){
  if(!A||!A->sparse||A->rows!=A->cols||A->rows<=0||A->rows>INT_MAX||A->nnz<=0||A->nnz>INT_MAX||!scalar_type(A->valueType)||(A->type<CUDSS_MTYPE_GENERAL||A->type>CUDSS_MTYPE_HPD)||(A->view<CUDSS_MVIEW_FULL||A->view>CUDSS_MVIEW_UPPER)||(A->type==CUDSS_MTYPE_GENERAL&&A->view!=CUDSS_MVIEW_FULL)||!A->starts||!A->indices||!A->values)return CUDSS_STATUS_NOT_SUPPORTED;
  if(A->indexType!=CUDA_R_32I&&A->indexType!=CUDA_R_64I)return CUDSS_STATUS_NOT_SUPPORTED;
+ if(A->base!=CUDSS_BASE_ZERO&&A->base!=CUDSS_BASE_ONE)return CUDSS_STATUS_INVALID_VALUE;
  const uint64_t budget=((uint64_t)A->rows+1)*8+(uint64_t)A->nnz*(4+item(A->valueType))+2*(uint64_t)A->rows*item(A->valueType)+63;
  if(budget>UINT64_C(20)*1024*1024*1024)return CUDSS_STATUS_ALLOC_FAILED;
  return CUDSS_STATUS_SUCCESS;
@@ -132,9 +143,85 @@ static void stage_log(cudssData_t d,const char*kind,double started,const CopyMet
 #else
 #define stage_log(...) ((void)0)
 #endif
+#if PGL_DEVICE
+static bool device_source(const void *p,int device){
+ if(!p)return false;cudaPointerAttributes a={};cudaError_t e=cudaPointerGetAttributes(&a,p);
+ if(e!=cudaSuccess){cudaGetLastError();return false;}
+ return a.type==cudaMemoryTypeManaged||(a.type==cudaMemoryTypeDevice&&a.device==device);
+}
+/* The exported allocations belong to this bridge, so IPC never depends on
+ * the caller's allocator, suballocation offsets, or address in the worker. */
+static cudssStatus_t allocate_device(void **p,size_t *capacity,size_t bytes,
+ cudaIpcMemHandle_t *handle,std::vector<void*>&retired,bool &changed){
+ changed=false;if(bytes<=*capacity)return CUDSS_STATUS_SUCCESS;
+ void *next=nullptr;cudaError_t e=cudaMalloc(&next,bytes);if(e)return CUDSS_STATUS_ALLOC_FAILED;
+ cudaIpcMemHandle_t exported={};
+ if(!direct_execution()&&(e=cudaIpcGetMemHandle(&exported,next))!=cudaSuccess){cudaFree(next);cudaGetLastError();return CUDSS_STATUS_NOT_SUPPORTED;}
+ if(*p)retired.push_back(*p);*p=next;*capacity=bytes;*handle=exported;changed=true;return CUDSS_STATUS_SUCCESS;
+}
+static cudssStatus_t stage_device_matrix(cudssData_t d,cudssHandle_t h,cudssMatrix_t A,bool &used,bool &same){
+ used=false;same=false;
+ if(!device_source(A->starts,h->device)||!device_source(A->indices,h->device)||
+    !device_source(A->values,h->device)||(A->ends&&!device_source(A->ends,h->device)))return CUDSS_STATUS_SUCCESS;
+ const double started=bridge_now();
+ BridgeRequest q={};q.magic=PGL_BRIDGE_MAGIC;q.n=A->rows;q.nnz=A->nnz;q.nrhs=1;
+ q.value_type=A->valueType;q.device=h->device;q.matrix_type=A->type;q.matrix_view=A->view;
+ q.reuse=getenv("PC_REUSE")&&strcmp(getenv("PC_REUSE"),"refactor")==0;
+ q.memory_space=direct_execution()?BR_MEMORY_DEVICE:BR_MEMORY_IPC;
+ q.ptr_offset=0;q.idx_offset=(q.n+1)*4;
+ q.val_offset=(q.idx_offset+q.nnz*4+63)&~UINT64_C(63);
+ q.matrix_bytes=q.val_offset+q.nnz*item(A->valueType);
+ bool allocated=false;cudssStatus_t status=allocate_device(&d->device_matrix,
+  &d->device_matrix_capacity,q.matrix_bytes,&d->matrix_ipc,d->retired_matrix,allocated);
+ if(status==CUDSS_STATUS_NOT_SUPPORTED){log_event("device_fallback","CUDA IPC export unavailable; using validated host transport");return CUDSS_STATUS_SUCCESS;}
+ if(status)return status;
+ if(!d->device_status&&cudaMalloc((void**)&d->device_status,sizeof(int))!=cudaSuccess)return CUDSS_STATUS_ALLOC_FAILED;
+ bool compare=!allocated&&d->device_valid&&d->request.memory_space!=BR_MEMORY_HOST&&
+  d->staged_device==h->device&&d->request.n==q.n&&d->request.nnz==q.nnz&&
+  d->request.value_type==q.value_type&&d->request.matrix_type==q.matrix_type&&d->request.matrix_view==q.matrix_view;
+ const double validation_started=bridge_now();
+ int flags=0;int error=pgl_device_stage(A->starts,A->ends,A->indices,A->values,
+  A->indexType==CUDA_R_64I?8:4,A->base==CUDSS_BASE_ONE?1:0,A->rows,A->nnz,
+  (int)item(A->valueType),(int32_t*)d->device_matrix,
+  (int32_t*)((char*)d->device_matrix+q.idx_offset),(char*)d->device_matrix+q.val_offset,
+  compare,d->device_status,&flags);
+ if(error||flags&(PGL_DEVICE_INVALID|PGL_DEVICE_NONCONTIGUOUS)){
+  d->device_valid=false;d->analyzed=false;d->factored=false;used=true;
+  return error?CUDSS_STATUS_EXECUTION_FAILED:flags&PGL_DEVICE_INVALID?CUDSS_STATUS_INVALID_VALUE:CUDSS_STATUS_NOT_SUPPORTED;
+ }
+ if(flags&PGL_DEVICE_UNSORTED){d->device_valid=false;log_event("device_fallback","unsorted CSR uses exact host canonicalization");return CUDSS_STATUS_SUCCESS;}
+ same=compare&&!(flags&PGL_DEVICE_PATTERN_CHANGED);
+ q.structure_epoch=same?d->request.structure_epoch:++d->epoch_counter;
+ q.value_epoch=compare&&!(flags&PGL_DEVICE_VALUES_CHANGED)?d->request.value_epoch:++d->value_counter;
+ if(direct_execution())q.matrix_address=(uint64_t)(uintptr_t)d->device_matrix;
+ else memcpy(q.matrix_ipc,&d->matrix_ipc,sizeof(d->matrix_ipc));
+ unmap(d);d->request=q;d->device_valid=true;d->staged_matrix=A;d->staged_device=h->device;
+ d->index_bytes=A->indexType==CUDA_R_64I?8:4;d->factored=false;if(!same)d->analyzed=false;
+ used=true;CopyMetrics copies;
+ PGL_DETAIL(copies.requested_bytes=sizeof(int);copies.device_bytes=sizeof(int);)
+ stage_log(d,same?"device_exact_refresh":"device_full",started,copies,bridge_now()-validation_started,0,same);
+ return CUDSS_STATUS_SUCCESS;
+}
+static cudssStatus_t solve_device(cudssData_t d,cudssMatrix_t A,cudssMatrix_t x,cudssMatrix_t b){
+ uint64_t bytes=(uint64_t)A->rows*(uint64_t)b->cols*item(A->valueType);
+ if(bytes>UINT64_C(10)*1024*1024*1024)return CUDSS_STATUS_ALLOC_FAILED;
+ bool allocated=false;cudssStatus_t status=allocate_device(&d->device_dense,
+  &d->device_dense_capacity,(size_t)(2*bytes),&d->dense_ipc,d->retired_dense,allocated);
+ if(status)return status;
+ d->request.nrhs=b->cols;d->request.b_offset=0;d->request.x_offset=bytes;d->request.dense_bytes=2*bytes;
+ if(direct_execution())d->request.dense_address=(uint64_t)(uintptr_t)d->device_dense;
+ else memcpy(d->request.dense_ipc,&d->dense_ipc,sizeof(d->dense_ipc));
+ if(cudaMemcpy(d->device_dense,b->values,(size_t)bytes,cudaMemcpyDefault)!=cudaSuccess)return CUDSS_STATUS_EXECUTION_FAILED;
+ status=rpc(d,BR_SOLVE);if(status)return status;
+ void *solution=(char*)d->device_dense+bytes;int invalid=0;
+ if(pgl_device_finite(solution,(size_t)bytes/8,d->device_status,&invalid)||invalid){d->info=5;return CUDSS_STATUS_EXECUTION_FAILED;}
+ return cudaMemcpy(x->values,solution,(size_t)bytes,cudaMemcpyDefault)==cudaSuccess?CUDSS_STATUS_SUCCESS:CUDSS_STATUS_EXECUTION_FAILED;
+}
+#endif
 // scratch_ptr/idx contain a fully validated, normalized readback of the actual
 // caller CSR. A fresh epoch is assigned only when this complete snapshot changes.
 static cudssStatus_t commit_full_stage(cudssData_t d,cudssHandle_t h,cudssMatrix_t A,CopyMetrics&copies){
+ d->device_valid=false;
  d->analyzed=false;d->factored=false;if(!direct_execution())unmap(d);
  BridgeRequest q={};q.magic=PGL_BRIDGE_MAGIC;q.n=A->rows;q.nnz=A->nnz;q.nrhs=1;q.value_type=A->valueType;q.device=h->device;q.reuse=getenv("PC_REUSE")&&strcmp(getenv("PC_REUSE"),"refactor")==0;
  q.structure_epoch=++d->epoch_counter;q.matrix_type=(int)A->type;q.matrix_view=(int)A->view;
@@ -153,11 +240,17 @@ static cudssStatus_t commit_full_stage(cudssData_t d,cudssHandle_t h,cudssMatrix
 }
 static cudssStatus_t stage_matrix(cudssData_t d,cudssHandle_t h,cudssMatrix_t A){
  const double started=bridge_now();cudssStatus_t status=validate_sparse(A);if(status)return status;CopyMetrics copies;
+#if PGL_DEVICE
+ bool used=false,same=false;status=stage_device_matrix(d,h,A,used,same);if(status||used)return status;
+#endif
  const double pattern_started=bridge_now();status=read_pattern(d,A,copies);const double pattern_seconds=bridge_now()-pattern_started;if(status)return status;
  status=commit_full_stage(d,h,A,copies);stage_log(d,"full",started,copies,pattern_seconds,0,false);return status;
 }
 static cudssStatus_t refresh_factor_matrix(cudssData_t d,cudssHandle_t h,cudssMatrix_t A,bool&same){
  const double started=bridge_now();cudssStatus_t status=validate_sparse(A);if(status)return status;CopyMetrics copies;
+#if PGL_DEVICE
+ bool used=false;status=stage_device_matrix(d,h,A,used,same);if(status||used)return status;
+#endif
  const double pattern_started=bridge_now();status=read_pattern(d,A,copies);const double pattern_seconds=bridge_now()-pattern_started;if(status)return status;
  const double comparison_started=bridge_now();
  same=d->memory!=MAP_FAILED&&d->staged_matrix==A&&d->staged_device==h->device&&d->request.n==(uint64_t)A->rows&&d->request.nnz==(uint64_t)A->nnz&&d->request.value_type==(uint64_t)A->valueType&&d->request.matrix_type==(int)A->type&&d->request.matrix_view==(int)A->view
@@ -181,7 +274,7 @@ struct ExecuteSpan {
 #define PGL_EXEC_SCOPE(d,p) ((void)0)
 #endif
 extern "C" {
-cudssStatus_t cudssCreate(cudssHandle_t*h){if(!h)return CUDSS_STATUS_INVALID_VALUE;*h=new(std::nothrow)cudssContext;if(!*h)return CUDSS_STATUS_ALLOC_FAILED;if(cudaGetDevice(&(*h)->device)!=cudaSuccess){delete *h;*h=nullptr;return CUDSS_STATUS_NOT_INITIALIZED;}log_event("create","cuDSS ABI 0.7.1 mapped to Pangu, no native cuDSS fallback");log_event("execution_policy","version=v5_macro_profile online_residual_check=off iterative_refinement=off diagnostic_matrix_hashes=off automatic_factor_retry=off");return CUDSS_STATUS_SUCCESS;}
+cudssStatus_t cudssCreate(cudssHandle_t*h){if(!h)return CUDSS_STATUS_INVALID_VALUE;*h=new(std::nothrow)cudssContext;if(!*h)return CUDSS_STATUS_ALLOC_FAILED;if(cudaGetDevice(&(*h)->device)!=cudaSuccess){delete *h;*h=nullptr;return CUDSS_STATUS_NOT_INITIALIZED;}log_event("create","cuDSS ABI 0.7.1 mapped to Pangu, no native cuDSS fallback");log_event("execution_policy","version=v6_gpu_resident online_residual_check=off iterative_refinement=off diagnostic_matrix_hashes=off automatic_factor_retry=off");log_event("device_transport",PGL_DEVICE?"GPU CSR exact validation and CUDA IPC enabled":"HOST fallback; build with PC_CUDA_COMPILER to enable GPU CSR");return CUDSS_STATUS_SUCCESS;}
 cudssStatus_t cudssCreateMg(cudssHandle_t*h,int count,int*devices){if(count!=1||!devices)return CUDSS_STATUS_NOT_SUPPORTED;if(cudaSetDevice(devices[0])!=cudaSuccess)return CUDSS_STATUS_INVALID_VALUE;return cudssCreate(h);}
 cudssStatus_t cudssDestroy(cudssHandle_t h){if(!h)return CUDSS_STATUS_INVALID_VALUE;delete h;return CUDSS_STATUS_SUCCESS;}
 cudssStatus_t cudssSetStream(cudssHandle_t h,cudaStream_t stream){if(!h)return CUDSS_STATUS_INVALID_VALUE;h->stream=stream;return CUDSS_STATUS_SUCCESS;}
@@ -191,7 +284,7 @@ cudssStatus_t cudssConfigDestroy(cudssConfig_t c){if(!c)return CUDSS_STATUS_INVA
 cudssStatus_t cudssConfigSet(cudssConfig_t c,cudssConfigParam_t p,void*v,size_t n){if(!c||!v||!n||n>4096)return CUDSS_STATUS_INVALID_VALUE;if(p==CUDSS_CONFIG_SOLVE_MODE&&n>=4&&*(int*)v!=0)return CUDSS_STATUS_NOT_SUPPORTED;c->values[(int)p]=std::vector<unsigned char>((unsigned char*)v,(unsigned char*)v+n);PGL_DETAIL(char line[128];snprintf(line,sizeof(line),"param=%d bytes=%zu; numerical policy delegated to Pangu",(int)p,n);log_event("config",line);)return CUDSS_STATUS_SUCCESS;}
 cudssStatus_t cudssConfigGet(cudssConfig_t c,cudssConfigParam_t p,void*v,size_t n,size_t*w){if(!c)return CUDSS_STATUS_INVALID_VALUE;auto it=c->values.find((int)p);if(it==c->values.end())return CUDSS_STATUS_NOT_SUPPORTED;if(w)*w=it->second.size();if(!v&&n==0)return CUDSS_STATUS_SUCCESS;if(n<it->second.size()||!v)return CUDSS_STATUS_INVALID_VALUE;memcpy(v,it->second.data(),it->second.size());return CUDSS_STATUS_SUCCESS;}
 cudssStatus_t cudssDataCreate(cudssHandle_t h,cudssData_t*d){if(!h||!d)return CUDSS_STATUS_INVALID_VALUE;*d=new(std::nothrow)cudssData;return *d?CUDSS_STATUS_SUCCESS:CUDSS_STATUS_ALLOC_FAILED;}
-cudssStatus_t cudssDataDestroy(cudssHandle_t,cudssData_t d){if(!d)return CUDSS_STATUS_INVALID_VALUE;if(d->local){local_api().destroy(d->local);d->local=nullptr;}if(d->socket>=0){rpc(d,BR_CLOSE);close(d->socket);d->socket=-1;}if(d->worker>0){int status;waitpid(d->worker,&status,0);}unmap(d);delete d;return CUDSS_STATUS_SUCCESS;}
+cudssStatus_t cudssDataDestroy(cudssHandle_t h,cudssData_t d){if(!d)return CUDSS_STATUS_INVALID_VALUE;if(h)cudaSetDevice(h->device);if(d->local){local_api().destroy(d->local);d->local=nullptr;}if(d->socket>=0){rpc(d,BR_CLOSE);close(d->socket);d->socket=-1;}if(d->worker>0){int status;waitpid(d->worker,&status,0);}unmap(d);free_device(d);delete d;return CUDSS_STATUS_SUCCESS;}
 cudssStatus_t cudssDataSet(cudssHandle_t h,cudssData_t d,cudssDataParam_t p,void*v,size_t n){if(!h||!d||!v||n==0)return CUDSS_STATUS_INVALID_VALUE;if(p==CUDSS_DATA_INFO){if(n!=4)return CUDSS_STATUS_INVALID_VALUE;memcpy(&d->info,v,4);return CUDSS_STATUS_SUCCESS;}if(p==CUDSS_DATA_USER_HOST_INTERRUPT){if(n!=4)return CUDSS_STATUS_INVALID_VALUE;d->interrupt=(const int*)v;log_event("host_interrupt_registered","checked between Pangu phases; in-phase asynchronous cancellation not implemented");return CUDSS_STATUS_SUCCESS;}log_event("unsupported_data_set");return CUDSS_STATUS_NOT_SUPPORTED;}
 cudssStatus_t cudssDataGet(cudssHandle_t h,cudssData_t d,cudssDataParam_t p,void*v,size_t n,size_t*w){
  if(!h||!d)return CUDSS_STATUS_INVALID_VALUE;
@@ -226,7 +319,11 @@ cudssStatus_t cudssExecute(cudssHandle_t h,int phase,cudssConfig_t c,cudssData_t
  }
  if(phase&CUDSS_PHASE_SOLVE){
   if((phase&CUDSS_PHASE_SOLVE)!=CUDSS_PHASE_SOLVE||!x||!b||x->sparse||b->sparse||x->rows!=A->rows||b->rows!=A->rows||x->cols<=0||x->cols>65536||b->cols!=x->cols||!((x->layout==CUDSS_LAYOUT_COL_MAJOR&&x->ld>=x->rows&&(x->cols==1||x->ld==x->rows))||(x->layout==CUDSS_LAYOUT_ROW_MAJOR&&x->ld==1&&x->cols==1))||!((b->layout==CUDSS_LAYOUT_COL_MAJOR&&b->ld>=b->rows&&(b->cols==1||b->ld==b->rows))||(b->layout==CUDSS_LAYOUT_ROW_MAJOR&&b->ld==1&&b->cols==1))||x->valueType!=A->valueType||b->valueType!=A->valueType)return CUDSS_STATUS_NOT_SUPPORTED;
-  if(!d->factored||d->memory==MAP_FAILED)return CUDSS_STATUS_NOT_INITIALIZED;
+  if(!d->factored)return CUDSS_STATUS_NOT_INITIALIZED;
+#if PGL_DEVICE
+  if(d->request.memory_space!=BR_MEMORY_HOST)return solve_device(d,A,x,b);
+#endif
+  if(d->memory==MAP_FAILED)return CUDSS_STATUS_NOT_INITIALIZED;
   uint64_t dense=(uint64_t)A->rows*(uint64_t)b->cols*item(A->valueType);
   uint64_t total=d->request.b_offset+2*dense;
   if(total>UINT64_C(20)*1024*1024*1024)return CUDSS_STATUS_ALLOC_FAILED;

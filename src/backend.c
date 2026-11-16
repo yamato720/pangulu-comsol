@@ -16,6 +16,7 @@
 #include <fcntl.h>
 
 extern int pangulu_license_status(char *message, size_t capacity);
+_Static_assert(sizeof(cudaIpcMemHandle_t)==64,"CUDA IPC handle ABI differs from bridge protocol");
 
 typedef struct {double r,i;} Z;
 #define now() PGL_NOW()
@@ -34,6 +35,9 @@ struct PanguBackend {
  uint64_t epoch,input_n,input_nnz,*csr_to_canonical;
  int input_type,input_device,matrix_type,matrix_view;
  uint64_t union_anchor_nnz;
+ int device_matrix;void *device_ptr,*device_idx,*device_val;
+ void *ipc_matrix,*ipc_dense;unsigned char matrix_ipc[64],dense_ipc[64];
+ uint64_t value_epoch;
 };
 typedef struct PanguBackend State;
 
@@ -45,7 +49,10 @@ static void release_gpu(State *s){
  s->analyzed=0;s->factored=0;s->numeric_count=0;
 }
 static void clear(State *s){
- release_gpu(s);free(s->ptr);free(s->idx);free(s->val);free(s->csr_to_canonical);memset(s,0,sizeof(*s));
+ release_gpu(s);free(s->ptr);free(s->idx);free(s->val);free(s->csr_to_canonical);
+ if(s->ipc_matrix)cudaIpcCloseMemHandle(s->ipc_matrix);
+ if(s->ipc_dense)cudaIpcCloseMemHandle(s->ipc_dense);
+ memset(s,0,sizeof(*s));
 }
 static int union_enabled(void){return 0;}
 static uint64_t union_limit(uint64_t anchor){
@@ -89,7 +96,14 @@ static int initialize_analysis(State*s,const BridgeRequest*q,BridgeResponse*r){
  r->pangulu_status=(int)pangulu_config_set(s->h,PANGULU_REORDERING_METHOD,ordering?L1:L0);if(r->pangulu_status)return -1;
  r->pangulu_status=(int)pangulu_config_set(s->h,PANGULU_REUSE_LEVEL,q->reuse?L2:L1);if(r->pangulu_status)return -1;
  pangulu_matrix_type_t types[]={PANGULU_MATRIX_GENERAL,PANGULU_MATRIX_SYMMETRIC,PANGULU_MATRIX_HERMITIAN,PANGULU_MATRIX_SPD,PANGULU_MATRIX_HPD};
- r->pangulu_status=(int)pangulu_matrix_create_sym(&s->A,PANGULU_MATRIX_LAYOUT_CSC,(int64_t)s->n,(int64_t)s->n,(int64_t)s->nnz,1,s->ptr,s->idx,s->val,PANGULU_R_64I,PANGULU_R_32I,s->value_type==5?PANGULU_C_64F:PANGULU_R_64F,types[q->matrix_type],(pangulu_matrix_view_t)q->matrix_view,PANGULU_MEMORY_HOST);if(r->pangulu_status)return -1;
+ r->pangulu_status=(int)pangulu_matrix_create_sym(&s->A,
+  s->device_matrix?PANGULU_MATRIX_LAYOUT_CSR:PANGULU_MATRIX_LAYOUT_CSC,
+  (int64_t)s->n,(int64_t)s->n,(int64_t)s->nnz,1,
+  s->device_matrix?s->device_ptr:s->ptr,s->device_matrix?s->device_idx:s->idx,
+  s->device_matrix?s->device_val:s->val,s->device_matrix?PANGULU_R_32I:PANGULU_R_64I,
+  PANGULU_R_32I,s->value_type==5?PANGULU_C_64F:PANGULU_R_64F,
+  types[q->matrix_type],(pangulu_matrix_view_t)q->matrix_view,
+  s->device_matrix?PANGULU_MEMORY_DEVICE:PANGULU_MEMORY_HOST);if(r->pangulu_status)return -1;
  int failed=phase(s,PANGULU_PHASE_ANALYSIS,&r->analysis_seconds,r,NULL,NULL);
  if(failed)return -1;
  s->analyzed=1;s->factored=0;s->numeric_count=0;return 0;
@@ -109,6 +123,33 @@ static void pattern_event(const State*s,const BridgeRequest*q,const BridgeRespon
 #else
 #define pattern_event(...) ((void)0)
 #endif
+static int load_device_matrix(State*s,const BridgeRequest*q,BridgeResponse*r){
+ double t=now();void *memory=NULL;
+ if(q->memory_space==BR_MEMORY_IPC){
+  if(!s->ipc_matrix||memcmp(s->matrix_ipc,q->matrix_ipc,sizeof(s->matrix_ipc))){
+   clear(s);cudaIpcMemHandle_t handle;memcpy(&handle,q->matrix_ipc,sizeof(handle));
+   r->cuda_status=(int)cudaIpcOpenMemHandle(&s->ipc_matrix,handle,cudaIpcMemLazyEnablePeerAccess);
+   if(r->cuda_status){r->status=5;return -1;}
+   memcpy(s->matrix_ipc,q->matrix_ipc,sizeof(s->matrix_ipc));
+  }
+  memory=s->ipc_matrix;
+ }else memory=(void*)(uintptr_t)q->matrix_address;
+ int same=s->device_matrix&&s->epoch==q->structure_epoch&&s->n==q->n&&
+  s->nnz==q->nnz&&s->value_type==(int)q->value_type&&s->device==q->device&&
+  s->matrix_type==q->matrix_type&&s->matrix_view==q->matrix_view&&
+  s->device_ptr==(char*)memory+q->ptr_offset&&s->device_idx==(char*)memory+q->idx_offset&&
+  s->device_val==(char*)memory+q->val_offset;
+ int reused=s->analyzed&&same&&(q->reuse||(!s->factored&&s->value_epoch==q->value_epoch));
+ if(!reused){release_gpu(s);PGL_TIME_ADD(r->release_seconds,t);}
+ /* HOST arrays are never aliases of device/IPC allocations. */
+ if(!s->device_matrix){free(s->ptr);free(s->idx);free(s->val);free(s->csr_to_canonical);s->ptr=NULL;s->idx=NULL;s->val=NULL;s->csr_to_canonical=NULL;}
+ s->device_matrix=1;s->n=q->n;s->nnz=q->nnz;s->item=q->value_type==5?16:8;
+ s->value_type=(int)q->value_type;s->device=q->device;s->matrix_type=q->matrix_type;s->matrix_view=q->matrix_view;
+ s->epoch=q->structure_epoch;s->value_epoch=q->value_epoch;s->factored=0;
+ s->device_ptr=(char*)memory+q->ptr_offset;s->device_idx=(char*)memory+q->idx_offset;
+ s->device_val=(char*)memory+q->val_offset;r->canonical_nnz=s->nnz;
+ int result=reused?1:initialize_analysis(s,q,r);pattern_event(s,q,r,same,reused,!same,0,same?0:q->nnz);return result;
+}
 static int load_matrix(State*s,const BridgeRequest*q,const void*memory,BridgeResponse*r){
  const uint64_t*rp=(const uint64_t*)((const char*)memory+q->ptr_offset);const int32_t*ci=(const int32_t*)((const char*)memory+q->idx_offset);const void*v=(const char*)memory+q->val_offset;
  size_t item=q->value_type==5?16:8;double t=now();
@@ -140,7 +181,9 @@ static int load_matrix(State*s,const BridgeRequest*q,const void*memory,BridgeRes
    if(same){u.n=q->n;u.nnz=q->nnz;u.input_nnz=q->nnz;u.ptr=s->ptr;u.idx=s->idx;}
    else{u.n=q->n;u.nnz=q->nnz;u.input_nnz=q->nnz;u.added_positions=compatible&&s->ptr?count_new_positions(q->n,s->ptr,s->idx,ptr,idx):q->nnz;u.grew=1;u.own_arrays=1;u.ptr=ptr;u.idx=idx;ptr=NULL;idx=NULL;}
   }
-  /* Translate CSR positions through the native CSC into canonical CSC. */
+  /* Strict mode's canonical CSC is already identical to the conversion.
+   * Only an actual union needs a second nnz-sized translation map. */
+  if(union_enabled()){
   const uint64_t*np=ptr?ptr:u.ptr;const int32_t*ni=idx?idx:u.idx;
   uint64_t*to_union=malloc((size_t)q->nnz*8);
   if(!to_union){pc_release(&u);r->status=2;goto bad;}
@@ -148,6 +191,7 @@ static int load_matrix(State*s,const BridgeRequest*q,const void*memory,BridgeRes
    uint64_t z=u.ptr[col];for(uint64_t k=np[col];k<np[col+1];k++){while(z<u.ptr[col+1]&&u.idx[z]<ni[k])z++;if(z==u.ptr[col+1]||u.idx[z]!=ni[k]){free(to_union);pc_release(&u);r->status=3;goto bad;}to_union[k]=z;}
   }
   for(uint64_t k=0;k<q->nnz;k++)to_csc[k]=to_union[to_csc[k]];free(to_union);
+  }
   PGL_TIME_ADD(r->pattern_seconds,t);
   int same_pattern=compatible&&!u.grew;
   int same_values=same_pattern;
@@ -174,16 +218,47 @@ int pc_backend_dispatch(PanguBackend *s,const BridgeRequest *q,BridgeResponse *r
  if(!s||!q||q->magic!=PGL_BRIDGE_MAGIC){r->status=3;return r->status;}
  r->n=q->n;r->nnz=q->nnz;
  if(q->command==BR_CLOSE){clear(s);return 0;}
-  if(!memory||q->n==0||q->n>INT32_MAX||q->nnz==0||q->nnz>INT32_MAX||(q->nrhs<1||q->nrhs>65536)||q->matrix_type<0||q->matrix_type>4||q->matrix_view<0||q->matrix_view>2||(q->value_type!=1&&q->value_type!=5)){r->status=3;goto done;}
-  if(q->ptr_offset+(q->n+1)*8>q->total_bytes||q->idx_offset+q->nnz*4>q->total_bytes||q->val_offset+q->nnz*(q->value_type==5?16:8)>q->total_bytes||q->b_offset+q->n*q->nrhs*(q->value_type==5?16:8)>q->total_bytes||q->x_offset+q->n*q->nrhs*(q->value_type==5?16:8)>q->total_bytes||q->total_bytes>UINT64_C(20)*1024*1024*1024){r->status=3;goto done;}
+  if(q->n==0||q->n>INT32_MAX||q->nnz==0||q->nnz>INT32_MAX||(q->nrhs<1||q->nrhs>65536)||q->matrix_type<0||q->matrix_type>4||q->matrix_view<0||q->matrix_view>2||(q->value_type!=1&&q->value_type!=5)||q->memory_space<BR_MEMORY_HOST||q->memory_space>BR_MEMORY_IPC){r->status=3;goto done;}
+  uint64_t element=q->value_type==5?16:8,limit=UINT64_C(20)*1024*1024*1024;
+  uint64_t dense=q->n*q->nrhs*element;
+  if(q->memory_space==BR_MEMORY_HOST){
+   if(!memory||q->total_bytes>limit||q->ptr_offset>q->total_bytes||(q->n+1)*8>q->total_bytes-q->ptr_offset||q->idx_offset>q->total_bytes||q->nnz*4>q->total_bytes-q->idx_offset||q->val_offset>q->total_bytes||q->nnz*element>q->total_bytes-q->val_offset||q->b_offset>q->total_bytes||dense>q->total_bytes-q->b_offset||q->x_offset>q->total_bytes||dense>q->total_bytes-q->x_offset){r->status=3;goto done;}
+  }else{
+   if(q->matrix_bytes>limit||q->ptr_offset>q->matrix_bytes||(q->n+1)*4>q->matrix_bytes-q->ptr_offset||q->idx_offset>q->matrix_bytes||q->nnz*4>q->matrix_bytes-q->idx_offset||q->val_offset>q->matrix_bytes||q->nnz*element>q->matrix_bytes-q->val_offset||(q->memory_space==BR_MEMORY_DEVICE&&!q->matrix_address)){r->status=3;goto done;}
+   if(q->command==BR_SOLVE&&(q->dense_bytes>limit||q->b_offset>q->dense_bytes||dense>q->dense_bytes-q->b_offset||q->x_offset>q->dense_bytes||dense>q->dense_bytes-q->x_offset||(q->memory_space==BR_MEMORY_DEVICE&&!q->dense_address))){r->status=3;goto done;}
+   r->cuda_status=(int)cudaSetDevice(q->device);if(r->cuda_status){r->status=5;goto done;}
+  }
  PGL_DETAIL({size_t f=0,t=0;if(cudaMemGetInfo(&f,&t)==cudaSuccess)r->free_before_bytes=f;})
   if(q->command==BR_ANALYZE||q->command==BR_FACTOR){
-   if(s->h&&(s->matrix_type!=q->matrix_type||s->matrix_view!=q->matrix_view))clear(s);
+   if(q->memory_space==BR_MEMORY_HOST&&s->device_matrix)clear(s);
+   if(q->memory_space==BR_MEMORY_HOST&&s->h&&(s->matrix_type!=q->matrix_type||s->matrix_view!=q->matrix_view))clear(s);
+   if(q->memory_space==BR_MEMORY_HOST){
    s->matrix_type=q->matrix_type;s->matrix_view=q->matrix_view;
-   int reused=load_matrix(s,q,memory,r);if(reused<0){if(!r->status)r->status=5;goto done;}
+   }
+   int reused=q->memory_space==BR_MEMORY_HOST?load_matrix(s,q,memory,r):load_device_matrix(s,q,r);if(reused<0){if(!r->status)r->status=5;goto done;}
    if(q->command==BR_FACTOR){if(factor(s,r)){if(!r->status)r->status=5;goto done;}}
   }else if(q->command==BR_SOLVE){
    if(!s->factored||s->n!=q->n||s->value_type!=(int)q->value_type){r->status=1;goto done;}
+   if(q->memory_space!=BR_MEMORY_HOST){
+    if(!s->device_matrix||s->epoch!=q->structure_epoch){r->status=1;goto done;}
+    void *base=(void*)(uintptr_t)q->dense_address;
+    if(q->memory_space==BR_MEMORY_IPC){
+     if(!s->ipc_dense||memcmp(s->dense_ipc,q->dense_ipc,sizeof(s->dense_ipc))){
+      if(s->ipc_dense){r->cuda_status=(int)cudaIpcCloseMemHandle(s->ipc_dense);s->ipc_dense=NULL;if(r->cuda_status){r->status=5;goto done;}}
+      cudaIpcMemHandle_t handle;memcpy(&handle,q->dense_ipc,sizeof(handle));
+      r->cuda_status=(int)cudaIpcOpenMemHandle(&s->ipc_dense,handle,cudaIpcMemLazyEnablePeerAccess);
+      if(r->cuda_status){r->status=5;goto done;}memcpy(s->dense_ipc,q->dense_ipc,sizeof(s->dense_ipc));
+     }
+     base=s->ipc_dense;
+    }
+    pangulu_vector_t b=NULL,x=NULL;
+    r->pangulu_status=(int)pangulu_multiple_vector_create(&b,(int64_t)s->n,(int64_t)q->nrhs,(int64_t)s->n,(char*)base+q->b_offset,s->value_type==5?PANGULU_C_64F:PANGULU_R_64F,PANGULU_MEMORY_DEVICE);
+    if(!r->pangulu_status)r->pangulu_status=(int)pangulu_multiple_vector_create(&x,(int64_t)s->n,(int64_t)q->nrhs,(int64_t)s->n,(char*)base+q->x_offset,s->value_type==5?PANGULU_C_64F:PANGULU_R_64F,PANGULU_MEMORY_DEVICE);
+    if(!r->pangulu_status)phase(s,PANGULU_PHASE_SOLVE,&r->solve_seconds,r,x,b);
+    if(x)pangulu_vector_destroy(x);if(b)pangulu_vector_destroy(b);
+    if(r->pangulu_status||r->cuda_status)r->status=5;
+    goto done;
+   }
    size_t bytes=(size_t)s->n*s->item*q->nrhs;if(bytes!=s->dense_bytes){if(s->db)cudaFree(s->db);if(s->dx)cudaFree(s->dx);s->db=s->dx=NULL;r->cuda_status=(int)cudaMalloc(&s->db,bytes);if(!r->cuda_status)r->cuda_status=(int)cudaMalloc(&s->dx,bytes);if(r->cuda_status){r->status=2;goto done;}s->dense_bytes=bytes;}
    r->cuda_status=(int)cudaMemcpy(s->db,(char*)memory+q->b_offset,bytes,cudaMemcpyHostToDevice);if(!r->cuda_status)r->cuda_status=(int)cudaMemset(s->dx,0,bytes);if(!r->cuda_status)r->cuda_status=(int)cudaDeviceSynchronize();if(r->cuda_status){r->status=5;goto done;}
    pangulu_vector_t b=NULL,x=NULL;r->pangulu_status=(int)pangulu_multiple_vector_create(&b,(int64_t)s->n,(int64_t)q->nrhs,(int64_t)s->n,s->db,s->value_type==5?PANGULU_C_64F:PANGULU_R_64F,PANGULU_MEMORY_DEVICE);if(!r->pangulu_status)r->pangulu_status=(int)pangulu_multiple_vector_create(&x,(int64_t)s->n,(int64_t)q->nrhs,(int64_t)s->n,s->dx,s->value_type==5?PANGULU_C_64F:PANGULU_R_64F,PANGULU_MEMORY_DEVICE);

@@ -14,7 +14,7 @@ class BuildApplication(build_py):
         resources.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / "config/distribution.json", resources / "distribution.json")
         for source in (ROOT / "src").rglob("*"):
-            if source.is_file() and source.suffix in {".c", ".cpp", ".h", ".java"}:
+            if source.is_file() and source.suffix in {".c", ".cpp", ".cu", ".h", ".java"}:
                 target = resources / "src" / source.relative_to(ROOT / "src")
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, target)

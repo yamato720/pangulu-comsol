@@ -14,7 +14,9 @@ int main(int argc,char **argv){
   if(request.magic!=PGL_BRIDGE_MAGIC){if(fd>=0)close(fd);break;}
   if(request.command==BR_CLOSE){pc_backend_dispatch(state,&request,&response,NULL);bridge_send(socket,&response,sizeof(response),-1);if(fd>=0)close(fd);break;}
   struct stat st;
-  if(fd<0||fstat(fd,&st)||!request.total_bytes||request.total_bytes>(uint64_t)st.st_size||request.total_bytes>UINT64_C(20)*1024*1024*1024)response.status=3;
+  if(request.memory_space==BR_MEMORY_IPC)pc_backend_dispatch(state,&request,&response,NULL);
+  else if(request.memory_space!=BR_MEMORY_HOST)response.status=3;
+  else if(fd<0||fstat(fd,&st)||!request.total_bytes||request.total_bytes>(uint64_t)st.st_size||request.total_bytes>UINT64_C(20)*1024*1024*1024)response.status=3;
   else{
    memory=mmap(NULL,(size_t)request.total_bytes,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
    if(memory==MAP_FAILED)response.status=2;
