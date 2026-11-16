@@ -34,7 +34,10 @@ struct LocalApi {
 static LocalApi& local_api(){
  static LocalApi api=[](){
   LocalApi value;const char *path=getenv("PC_BACKEND");
-  if(path)value.library=dlopen(path,RTLD_NOW|RTLD_LOCAL);
+  /* The SDK uses GNU OpenMP, including firstprivate task copy callbacks.
+   * COMSOL also exports GOMP symbols through Intel OpenMP. Bind the SDK to
+   * its own dependency group while COMSOL keeps its existing runtime. */
+  if(path)value.library=dlopen(path,RTLD_NOW|RTLD_LOCAL|RTLD_DEEPBIND);
   if(value.library){
    value.create=(decltype(value.create))dlsym(value.library,"pc_backend_create");
    value.dispatch=(decltype(value.dispatch))dlsym(value.library,"pc_backend_dispatch");
@@ -119,7 +122,7 @@ static cudssStatus_t rpc(cudssData_t d,int command){
  d->request.client_pid=getpid();d->request.data_id=d->data_id;
  if(direct_execution()){
   auto &api=local_api();if(!api.create||!api.dispatch||!api.destroy)return CUDSS_STATUS_NOT_INITIALIZED;
-  if(!d->local){d->local=api.create();if(!d->local)return CUDSS_STATUS_ALLOC_FAILED;log_event("direct_started","shared Pangu backend in COMSOL process");}
+  if(!d->local){d->local=api.create();if(!d->local)return CUDSS_STATUS_ALLOC_FAILED;log_event("direct_started","shared Pangu backend in COMSOL process; dependency-first loader scope");}
   api.dispatch(d->local,&d->request,&d->last,d->memory);
  }else{
   cudssStatus_t status=start_worker(d);if(status!=CUDSS_STATUS_SUCCESS)return status;
