@@ -43,7 +43,7 @@ static LocalApi& local_api(){
  }();return api;
 }
 
-struct cudssContext {int device=0;cudaStream_t stream=nullptr;};
+struct cudssContext {int device=0;cudaStream_t stream=nullptr;bool device_kernels=false;};
 struct cudssConfig {std::map<int,std::vector<unsigned char>> values;};
 struct cudssMatrix {bool sparse=false;int64_t rows=0,cols=0,nnz=0,ld=0;void *starts=nullptr,*ends=nullptr,*indices=nullptr,*values=nullptr;cudaDataType_t indexType=CUDA_R_32I,valueType=CUDA_C_64F;cudssMatrixType_t type=CUDSS_MTYPE_GENERAL;cudssMatrixViewType_t view=CUDSS_MVIEW_FULL;cudssIndexBase_t base=CUDSS_BASE_ZERO;cudssLayout_t layout=CUDSS_LAYOUT_COL_MAJOR;};
 struct cudssData {PanguBackend *local=nullptr;size_t memory_capacity=0;int socket=-1;pid_t worker=-1;int fd=-1;void *memory=MAP_FAILED;BridgeRequest request={};BridgeResponse last={};int info=0,index_bytes=4;bool analyzed=false,factored=false;const int *interrupt=nullptr;std::map<int,std::vector<unsigned char>> user;
@@ -164,6 +164,7 @@ static cudssStatus_t allocate_device(void **p,size_t *capacity,size_t bytes,
 }
 static cudssStatus_t stage_device_matrix(cudssData_t d,cudssHandle_t h,cudssMatrix_t A,bool &used,bool &same){
  used=false;same=false;
+ if(!h->device_kernels)return CUDSS_STATUS_SUCCESS;
  if(!device_source(A->starts,h->device)||!device_source(A->indices,h->device)||
     !device_source(A->values,h->device)||(A->ends&&!device_source(A->ends,h->device)))return CUDSS_STATUS_SUCCESS;
  const double started=bridge_now();
@@ -215,10 +216,14 @@ static cudssStatus_t solve_device(cudssData_t d,cudssMatrix_t A,cudssMatrix_t x,
  if(direct_execution())d->request.dense_address=(uint64_t)(uintptr_t)d->device_dense;
  else memcpy(d->request.dense_ipc,&d->dense_ipc,sizeof(d->dense_ipc));
  if(cudaMemcpy(d->device_dense,b->values,(size_t)bytes,cudaMemcpyDefault)!=cudaSuccess)return CUDSS_STATUS_EXECUTION_FAILED;
+ /* D2D cudaMemcpy can return before the copy completes. In particular, the
+  * worker's CUDA context cannot inherit ordering from this default stream. */
+ if(cudaStreamSynchronize(nullptr)!=cudaSuccess)return CUDSS_STATUS_EXECUTION_FAILED;
  status=rpc(d,BR_SOLVE);if(status)return status;
  void *solution=(char*)d->device_dense+bytes;int invalid=0;
  if(pgl_device_finite(solution,(size_t)bytes/8,d->device_status,&invalid)||invalid){d->info=5;return CUDSS_STATUS_EXECUTION_FAILED;}
- return cudaMemcpy(x->values,solution,(size_t)bytes,cudaMemcpyDefault)==cudaSuccess?CUDSS_STATUS_SUCCESS:CUDSS_STATUS_EXECUTION_FAILED;
+ if(cudaMemcpy(x->values,solution,(size_t)bytes,cudaMemcpyDefault)!=cudaSuccess)return CUDSS_STATUS_EXECUTION_FAILED;
+ return cudaStreamSynchronize(nullptr)==cudaSuccess?CUDSS_STATUS_SUCCESS:CUDSS_STATUS_EXECUTION_FAILED;
 }
 #endif
 // scratch_ptr/idx contain a fully validated, normalized readback of the actual
@@ -277,7 +282,20 @@ struct ExecuteSpan {
 #define PGL_EXEC_SCOPE(d,p) ((void)0)
 #endif
 extern "C" {
-cudssStatus_t cudssCreate(cudssHandle_t*h){if(!h)return CUDSS_STATUS_INVALID_VALUE;*h=new(std::nothrow)cudssContext;if(!*h)return CUDSS_STATUS_ALLOC_FAILED;if(cudaGetDevice(&(*h)->device)!=cudaSuccess){delete *h;*h=nullptr;return CUDSS_STATUS_NOT_INITIALIZED;}log_event("create","cuDSS ABI 0.7.1 mapped to Pangu, no native cuDSS fallback");log_event("execution_policy","version=v6_gpu_resident online_residual_check=off iterative_refinement=off diagnostic_matrix_hashes=off automatic_factor_retry=off");log_event("device_transport",PGL_DEVICE?"GPU CSR exact validation and CUDA IPC enabled":"HOST fallback; build with PC_CUDA_COMPILER to enable GPU CSR");return CUDSS_STATUS_SUCCESS;}
+cudssStatus_t cudssCreate(cudssHandle_t*h){
+ if(!h)return CUDSS_STATUS_INVALID_VALUE;*h=new(std::nothrow)cudssContext;if(!*h)return CUDSS_STATUS_ALLOC_FAILED;
+ if(cudaGetDevice(&(*h)->device)!=cudaSuccess){delete *h;*h=nullptr;return CUDSS_STATUS_NOT_INITIALIZED;}
+#if PGL_DEVICE
+ int major=0,minor=0;
+ if(cudaDeviceGetAttribute(&major,cudaDevAttrComputeCapabilityMajor,(*h)->device)!=cudaSuccess||
+    cudaDeviceGetAttribute(&minor,cudaDevAttrComputeCapabilityMinor,(*h)->device)!=cudaSuccess){delete *h;*h=nullptr;return CUDSS_STATUS_NOT_INITIALIZED;}
+ (*h)->device_kernels=major*10+minor>=PGL_DEVICE_MIN_CC;
+#endif
+ log_event("create","cuDSS ABI 0.7.1 mapped to Pangu, no native cuDSS fallback");
+ log_event("execution_policy","version=v6_gpu_resident online_residual_check=off iterative_refinement=off diagnostic_matrix_hashes=off automatic_factor_retry=off");
+ log_event("device_transport",(*h)->device_kernels?"GPU CSR exact validation and CUDA IPC enabled":PGL_DEVICE?"HOST fallback; GPU compute capability is below 7.5":"HOST fallback; build with PC_CUDA_COMPILER to enable GPU CSR");
+ return CUDSS_STATUS_SUCCESS;
+}
 cudssStatus_t cudssCreateMg(cudssHandle_t*h,int count,int*devices){if(count!=1||!devices)return CUDSS_STATUS_NOT_SUPPORTED;if(cudaSetDevice(devices[0])!=cudaSuccess)return CUDSS_STATUS_INVALID_VALUE;return cudssCreate(h);}
 cudssStatus_t cudssDestroy(cudssHandle_t h){if(!h)return CUDSS_STATUS_INVALID_VALUE;delete h;return CUDSS_STATUS_SUCCESS;}
 cudssStatus_t cudssSetStream(cudssHandle_t h,cudaStream_t stream){if(!h)return CUDSS_STATUS_INVALID_VALUE;h->stream=stream;return CUDSS_STATUS_SUCCESS;}

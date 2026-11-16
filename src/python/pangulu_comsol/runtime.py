@@ -275,7 +275,8 @@ def build():
             # that collide with CUDA 12's host/device declarations.
             commands.insert(0, [compiler, *host_flags, '-U_GNU_SOURCE', '-D_DEFAULT_SOURCE',
                 '-O2', '-std=c++17', '-Xcompiler=-fPIC',
-                '-gencode=arch=compute_80,code=[sm_80,compute_80]', '-I'+str(source),
+                '-gencode=arch=compute_75,code=[sm_75,compute_75]',
+                '-gencode=arch=compute_80,code=sm_80', '-I'+str(source),
                 '-c', str(source/'device.cu'), '-o', device_objects[0]])
         with (output / 'build.log').open('w') as log:
             try:
@@ -294,6 +295,7 @@ def build():
         write(output / 'manifest.json', dict(module_version='0.4.0', pangu_abi=MODULE_ABI, comsol_series='6.4', cudss_abi='0.7.1',execution_modes=['worker','direct'],
               files={name: sha(output / name) for name in shipped}, build_sdk_version=sdk_info(p)['version'],
               device_csr=bool(compiler), cuda_compiler=compiler,
+              device_min_compute_capability=75 if compiler else None,
               source_sha256={'src/' + str(f.relative_to(source)): sha(f) for f in sources}))
         target, previous = module_dir(), pathlib.Path(temp) / 'previous-module'
         if target.exists():

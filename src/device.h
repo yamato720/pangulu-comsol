@@ -5,6 +5,7 @@
 #ifndef PGL_DEVICE
 #define PGL_DEVICE 0
 #endif
+#define PGL_DEVICE_MIN_CC 75
 #ifdef __cplusplus
 extern "C" {
 #endif

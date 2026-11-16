@@ -75,6 +75,8 @@ pangu-comsol run --execution direct /path/to/model.mph
 
 GPU CSR 快路径另需 CUDA 12 的 `nvcc` 和其支持的 C++ 编译器。构建会使用 `PC_CUDA_COMPILER`、配置的 CUDA 目录下 `bin/nvcc`，或 PATH 中的 `nvcc`；`NVCC_CCBIN` 可指定兼容的主机 C++ 编译器。没有 `nvcc` 时仍可构建 HOST 回退版本。`runtime/module/manifest.json` 的 `device_csr` 字段和启动日志会明确记录是否启用了 GPU 路径。
 
+GPU 核心包含 sm75/sm80 机器码和 compute75 PTX，支持计算能力 7.5 及以上设备；更早的 GPU 自动选择 HOST 路径。实际可用 GPU 仍受原始 SDK 和授权范围限制。
+
 GUI 中的 Pangu 选项由用户自行选择，不自动计算或保存。命令行指定模型时打开工作副本；GUI 内直接打开原文件后保存仍会写回原文件，需要保留原件时使用 Save As。
 
 应用沿用 COMSOL 默认或用户已有的偏好、临时、恢复、工作区及配置位置，不创建或重写 `.prefs`。线程数仅在显式指定时覆盖本次运行。
