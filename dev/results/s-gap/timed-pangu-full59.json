@@ -1,0 +1,134 @@
+{
+  "label": "timed-pangu-full59",
+  "backend": "pangu",
+  "runAll_seconds": 209.439946268,
+  "process_wall_seconds": 250.70511162199546,
+  "fields_passed": 236,
+  "callbacks": 295,
+  "execute_API_wall_seconds": 116.109955196,
+  "API_phase_wall": {
+    "1": {
+      "calls": 59,
+      "wall_seconds": 0.0028347960000000005
+    },
+    "2": {
+      "calls": 59,
+      "wall_seconds": 56.238154275
+    },
+    "4": {
+      "calls": 59,
+      "wall_seconds": 57.710671469000005
+    },
+    "1008": {
+      "calls": 118,
+      "wall_seconds": 2.1582946560000003
+    }
+  },
+  "wall_outside_execute_API_seconds": 93.329991072,
+  "unobserved_prefix_seconds": 209.439946268,
+  "GPU": null,
+  "observed_no_GPU_wall_seconds": null,
+  "trace_summaries": [],
+  "bridge_summary": [
+    {
+      "pid": 301154,
+      "data_id": 1,
+      "execution": "direct",
+      "analysis_requests": 59,
+      "numeric_requests": 59,
+      "solve_requests": 118,
+      "worker_starts": 0,
+      "device_validations": 118,
+      "host_full_stages": 0,
+      "structure_epochs_created": 59,
+      "device_value_epochs_created": 59,
+      "matrix_allocations": 1,
+      "dense_allocations": 1,
+      "status_allocations": 1,
+      "device_frees": 3,
+      "bridge_device_bytes_live": 0,
+      "bridge_device_bytes_peak": 363958600,
+      "cleanup_errors": 0,
+      "matrix_reserve_oom_fallbacks": 0,
+      "confirmed_device_pattern_changes": 58,
+      "n_min": 300475,
+      "n_max": 300475,
+      "nnz_min": 15688426,
+      "nnz_max": 15688721
+    }
+  ],
+  "backend_summary": [
+    {
+      "pid": 301154,
+      "client_pid": 301154,
+      "data_id": 1,
+      "handle_create_calls": 1,
+      "handles_created": 1,
+      "handle_destroy_calls": 1,
+      "analysis_calls": 59,
+      "handle_reanalyses": 58,
+      "numeric_calls": 59,
+      "refactor_calls": 0,
+      "solve_calls": 118,
+      "phase_failures": 0,
+      "vector_create_calls": 2,
+      "vector_destroy_calls": 2,
+      "device_allocations": 0,
+      "device_frees": 0,
+      "backend_buffer_bytes_live": 0,
+      "backend_buffer_bytes_peak": 0,
+      "matrix_ipc_opens": 0,
+      "matrix_ipc_closes": 0,
+      "dense_ipc_opens": 0,
+      "dense_ipc_closes": 0,
+      "cleanup_errors": 0
+    }
+  ],
+  "traced": false,
+  "method": "Observer starts at normal backend DLL load. Prefix before its clock is unobserved, not classified as CPU or GPU idle. GPU intervals overlap host API windows. Native wrapper adds no synchronization.",
+  "GPU_intervals_after_runAll_end": null,
+  "kernel_by_launch_API_phase_seconds": null,
+  "unattributed_kernel_union_seconds": null,
+  "top_kernel_cumulative_seconds_may_overlap": [],
+  "SDK_phase_wall_and_GPU": {
+    "1027": {
+      "calls": 59,
+      "wall_seconds": 56.080513666,
+      "GPU_active_seconds": null,
+      "GPU_kernel_seconds": null
+    },
+    "4": {
+      "calls": 59,
+      "wall_seconds": 57.37844873900001,
+      "GPU_active_seconds": null,
+      "GPU_kernel_seconds": null
+    },
+    "8": {
+      "calls": 0,
+      "wall_seconds": 0,
+      "GPU_active_seconds": null,
+      "GPU_kernel_seconds": null
+    },
+    "1008": {
+      "calls": 118,
+      "wall_seconds": 2.03198018,
+      "GPU_active_seconds": null,
+      "GPU_kernel_seconds": null
+    }
+  },
+  "SDK_total_wall_seconds": 115.49094258500001,
+  "bridge_remainder_inside_execute_seconds": 0.619012610999988,
+  "initialization_seconds": 0.094053803,
+  "matrix_front_nested_in_bridge": {
+    "device_full": {
+      "calls": 59,
+      "total_seconds": 0.12790460107999999,
+      "status_readback_bytes": 236
+    },
+    "device_exact_refresh": {
+      "calls": 59,
+      "total_seconds": 0.30514636307000004,
+      "status_readback_bytes": 236
+    }
+  }
+}

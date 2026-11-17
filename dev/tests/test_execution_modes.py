@@ -22,7 +22,7 @@ class ExecutionTests(unittest.TestCase):
             with patch.object(core,'ROOT',root),patch.object(core,'cfg',return_value={'comsol_root':str(comsol)}):
                 path,info=execution.direct_launcher()
             self.assertEqual(source.read_text(),text)
-            self.assertEqual(path.read_text(),text.replace('setflldpreload ${JREROOT}/lib/libjsig.so',': # Pangu direct session: omit libjsig preloading'))
+            self.assertEqual(path.read_text(),text.replace('setflldpreload ${JREROOT}/lib/libjsig.so',': # PanguLU direct session: omit libjsig preloading'))
             self.assertFalse(info['installation_modified'])
             self.assertFalse(list(path.parent.glob('.direct-*')))
 
@@ -36,7 +36,7 @@ class ExecutionTests(unittest.TestCase):
     def test_execution_is_explicit_and_not_applied_to_other_backends(self):
         args=cli.parser().parse_args(['run','--execution','direct']);self.assertEqual(args.backend,'pangu');self.assertEqual(args.execution,'direct')
         args=cli.parser().parse_args(['run']);self.assertIsNone(args.execution)
-        with self.assertRaisesRegex(ValueError,'only to the Pangu'):
+        with self.assertRaisesRegex(ValueError,'only to the PanguLU'):
             core.comsol_command(Path('/unused'),'cudss',backend='cudss',execution='direct')
         with self.assertRaisesRegex(ValueError,'worker or direct'):core.clean_env(execution='unknown')
 

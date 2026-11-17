@@ -31,7 +31,7 @@ def main():
     time.sleep(2)
     records=read(OUT/'suite.json');assert len(records)==3 and records[-1]['returncode']!=0
     plan=read(OUT/'suite-plan.json');remaining=[x for x in plan[3:] if not(x['backend']=='pangu' and x['reorder']=='L1' and x['label'].endswith('r1'))]
-    write(OUT/'suite-adjustment.json',{'reason':'Bound L1 GPU profiling and avoid repeating an expensive uncharacterized configuration. Complete two untraced controls each for native cuDSS and default Pangu L0; run one bounded untraced Pangu L1 for compatibility diagnosis.','remaining':remaining})
+    write(OUT/'suite-adjustment.json',{'reason':'Bound L1 GPU profiling and avoid repeating an expensive uncharacterized configuration. Complete two untraced controls each for native cuDSS and default PanguLU L0; run one bounded untraced PanguLU L1 for compatibility diagnosis.','remaining':remaining})
     p=OUT/'datasets/million/metadata.json';meta=read(p);meta['timeout_seconds']=180;write(p,meta)
     for item in remaining:
         command=[sys.executable,'-B',str(HERE/'bench.py'),'run','--case','million','--backend',item['backend'],

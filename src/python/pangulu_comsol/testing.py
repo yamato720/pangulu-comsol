@@ -8,7 +8,7 @@ import sys
 import tempfile
 from . import runtime as core
 
-BACKENDS = {'cudss': '原生 NVIDIA cuDSS', 'mycudss-direct': 'cuDSS 直接封装', 'mycudss-worker': 'cuDSS worker 封装','pangu':'Pangu'}
+BACKENDS = {'cudss': '原生 NVIDIA cuDSS', 'mycudss-direct': 'cuDSS 直接封装', 'mycudss-worker': 'cuDSS worker 封装','pangu':'PanguLU'}
 
 
 def directory():
@@ -122,7 +122,7 @@ def environment(backend,threads=None):
 def benchmark(args):
     if not 1<=args.threads<=len(os.sched_getaffinity(0)):raise ValueError('threads exceeds available CPU affinity')
     if not 1<=args.repeat<=10:raise ValueError('repeat must be 1..10')
-    if args.execution is not None and args.backend!='pangu':raise ValueError('Execution mode applies only to Pangu')
+    if args.execution is not None and args.backend!='pangu':raise ValueError('Execution mode applies only to PanguLU')
     script=sources()/'benchmark.py'
     if not script.is_file():raise ValueError('Optional S benchmark tools are not installed')
     command=[sys.executable,'-B',str(script),'--backend',args.backend,'--project',str(args.project.expanduser().resolve()),

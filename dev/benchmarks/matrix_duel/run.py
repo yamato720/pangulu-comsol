@@ -55,7 +55,7 @@ def prepare():
            'mycudss_manifest':testing.verify(),'CUPTI':str(CUPTI),'CUPTI_sha256':core.sha(CUPTI/'lib/libcupti.so.12'),
            'sources':{p.name:core.sha(p) for p in HERE.iterdir() if p.is_file() and p.suffix in {'.cpp','.h','.py'}},
            'binaries':{p.name:core.sha(p) for p in binary.iterdir() if p.is_file()},
-           'method':'Pangu original public C API, GPU CSC64/32 (or explicit CSR check); mycudss-direct/native NVIDIA cuDSS GPU CSR32. Equivalent layouts, three numeric variants and eight RHS columns prepared/uploaded outside phase clocks. No COMSOL, Pangu cuDSS adapter, socket or worker.'})
+           'method':'PanguLU original public C API, GPU CSC64/32 (or explicit CSR check); mycudss-direct/native NVIDIA cuDSS GPU CSR32. Equivalent layouts, three numeric variants and eight RHS columns prepared/uploaded outside phase clocks. No COMSOL, PanguLU cuDSS adapter, socket or worker.'})
     print('PREPARED',OUT,flush=True)
 
 

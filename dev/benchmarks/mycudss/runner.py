@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run S through Pangu or NVIDIA cuDSS, with the same CPU field validation."""
+"""Run S through PanguLU or NVIDIA cuDSS, with the same CPU field validation."""
 import argparse
 import csv
 import datetime

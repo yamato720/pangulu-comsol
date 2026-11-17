@@ -103,7 +103,7 @@ def main():
     report['notes'] = [
         'Both libcscudss.so and libcscudautil.so have no directly imported cublas functions. libcscudss.so nevertheless has DT_NEEDED libcublas.so.12, which must be loadable. This is a loader dependency, not evidence that complete cuBLAS operation translation is necessary for this direct-solver path.',
         'No direct libcuda driver-API or NVML imports were found in the scanned COMSOL GPU wrappers. A vendor runtime may internally need its own driver API. Do not infer a need to emulate all libcuda/NVML from NVIDIA runtime transitive dependencies.',
-        'The DCU Pangu SDK is available to the user but not inspected here. Its API/ABI, dependencies, DTK version and matrix/vector memory rules still need comparison with the current worker.',
+        'The DCU PanguLU SDK is available to the user but not inspected here. Its API/ABI, dependencies, DTK version and matrix/vector memory rules still need comparison with the current worker.',
         'Preserve CUDA 12 SONAME/versioned-symbol expectations, cudaDeviceProp_v2/pointer-attribute layouts, memory ownership, copy directions, synchronization, and error semantics.',
         'Core solver replacement does not by itself cover COMSOL rendering, DNN training, or time-explicit GPU formulations.',
         'Static undefined imports do not find every possible dlsym-resolved dependency and do not prove runtime call coverage. Expand execution tracing across intended model classes before claiming comprehensive replacement.'
@@ -114,7 +114,7 @@ def main():
         required = set(runtime_with_adapter) | set(internals)
         report['candidate_runtime'] = dict(path=str(candidate), sha256=sha(candidate), required_symbols=sorted(required), missing_symbols=sorted(required-available), note='Name coverage only. Successful symbol lookup does not validate ABI, device kernels, or numerical/runtime semantics.')
     (out / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n')
-    lines = ['COMSOL -> 海光 Pangu 接入依赖核对', '目标：COMSOL 6.4.0.293 / Linux x86_64 / cuDSS 0.7.1 直接求解路径。', '依据：本机 ELF 未定义符号、DT_NEEDED、调用点反汇编和既有 S 扫描 maps。静态清单不是所有动态调用的执行证明。', '', f'COMSOL 包装库导入 cuDSS 函数 {len(cuDSS)} 个；当前适配库全部导出；缺失符号 {len(report["missing_cudss_symbols"])} 个。']
+    lines = ['COMSOL -> 海光 PanguLU 接入依赖核对', '目标：COMSOL 6.4.0.293 / Linux x86_64 / cuDSS 0.7.1 直接求解路径。', '依据：本机 ELF 未定义符号、DT_NEEDED、调用点反汇编和既有 S 扫描 maps。静态清单不是所有动态调用的执行证明。', '', f'COMSOL 包装库导入 cuDSS 函数 {len(cuDSS)} 个；当前适配库全部导出；缺失符号 {len(report["missing_cudss_symbols"])} 个。']
     lines += ['  '+s for s in cuDSS]
     lines += ['', f'COMSOL 核心两库的 CUDA Runtime 普通函数：{len(runtime)} 个。'] + ['  '+s for s in runtime]
     lines += ['', '保留当前适配层时额外需要：'] + ['  '+s for s in sorted(set(adapter_runtime)-set(runtime))]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Final report for the Pangu execution switch and measured comparison."""
+"""Final report for the PanguLU execution switch and measured comparison."""
 import datetime
 import json
 from pathlib import Path
@@ -50,7 +50,7 @@ def main():
               'GPU memory is sampled whole-device use, including desktop and other processes. Small differences are not exact per-process allocations.',
               'Original input models, SDK and licence remain intact. No customer release archive generated.']}
     (OUT/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
-    lines=['Pangu worker/direct 执行方式：实现及验收完成','默认 worker；CLI 使用 --execution worker/direct，运行页和测试页可选择。','',
+    lines=['PanguLU worker/direct 执行方式：实现及验收完成','默认 worker；CLI 使用 --execution worker/direct，运行页和测试页可选择。','',
        f"完整 S Study3 59频点，两次均值：worker {worker['mean_seconds']:.6f}s；direct {direct['mean_seconds']:.6f}s。",
        f"原始值：worker {worker['seconds']}；direct {direct['seconds']}。",
        f"direct 均值耗时变化 {comparison['study3_direct_extra_percent']:+.3f}%；本轮未显示完整流程明显提速。",'',

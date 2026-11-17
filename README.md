@@ -1,10 +1,12 @@
-# Pangu–COMSOL
+# PanguLU–COMSOL
 
-Pangu–COMSOL 是带交互式终端界面的 CLI 应用，用于配置 COMSOL 接入、管理本地 SDK 包与原始许可、检查环境和启动求解。COMSOL 继续负责物理场、网格、组装、外层迭代和后处理。
+PanguLU–COMSOL 是带交互式终端界面的 CLI 应用，用于配置 COMSOL 接入、管理本地 SDK 包与原始许可、检查环境和启动求解。COMSOL 继续负责物理场、网格、组装、外层迭代和后处理。
 
 `main` 是交付主分支，保留正式源码、安装定义、通用配置及客户说明。[`develop`](https://github.com/yamato720/pangulu-comsol/tree/develop) 是开发分支，另含 mycudss、测试、性能实验和环境准备工具；这些内容不进入客户安装包。厂商 SDK、许可和 CUDA 运行库另行提供。
 
 当前为开发工作区。测试环境、依赖版本、mycudss 构建及各实验入口见 [dev/README.md](dev/README.md)。原有实验脚本保留，目标机器按自身安装位置调整路径。
+
+开发快照 **0.7.0.dev1** 保存 PanguLU 正式用名更正和本机 S 工作流差距研究，基于 `ae57500`；本快照没有新增数值优化，厂商 SDK 仍是原始 26.46。研究入口与记录见 [dev/benchmarks/s_gap/README.md](dev/benchmarks/s_gap/README.md)。
 
 ## 交互式终端应用
 
@@ -77,13 +79,13 @@ GPU CSR 快路径另需 CUDA 12 的 `nvcc` 和其支持的 C++ 编译器。构�
 
 GPU 核心包含 sm75/sm80 机器码和 compute75 PTX，支持计算能力 7.5 及以上设备；更早的 GPU 自动选择 HOST 路径。实际可用 GPU 仍受原始 SDK 和授权范围限制。
 
-GUI 中的 Pangu 选项由用户自行选择，不自动计算或保存。命令行指定模型时打开工作副本；GUI 内直接打开原文件后保存仍会写回原文件，需要保留原件时使用 Save As。
+GUI 中的 PanguLU 选项由用户自行选择，不自动计算或保存。命令行指定模型时打开工作副本；GUI 内直接打开原文件后保存仍会写回原文件，需要保留原件时使用 Save As。
 
 应用沿用 COMSOL 默认或用户已有的偏好、临时、恢复、工作区及配置位置，不创建或重写 `.prefs`。线程数仅在显式指定时覆盖本次运行。
 
-## Pangu 执行方式
+## PanguLU 执行方式
 
-`--execution worker` 为默认方式，由独立进程调用 Pangu；`--execution direct` 在 COMSOL 进程内调用同一份数值后端。终端运行页和测试页均可选择，COMSOL 模型内仍使用同一个 Pangu Direct 选项。
+`--execution worker` 为默认方式，由独立进程调用 PanguLU；`--execution direct` 在 COMSOL 进程内调用同一份数值后端。终端运行页和测试页均可选择，COMSOL 模型内仍使用同一个 PanguLU Direct 选项。
 
 ```bash
 ./start.sh --execution worker /path/to/model.mph
@@ -92,9 +94,9 @@ GUI 中的 Pangu 选项由用户自行选择，不自动计算或保存。命令
   --project /path/to/study3-pangulu-s --frequencies all
 ```
 
-两种方式共用 `src/backend.c` 的分析、分解和回代实现。GPU 上有序且无重复的 CSR 经 GPU 完整校验和逐元素比较后，保留在桥接层自己的 GPU 缓冲区，直接交给 Pangu 的原生 CSR 接口；32/64 位和零/一起始索引会归一化。每次分解都会检查实际结构和数值内容，结构变化会重新分析。direct 直接使用这些缓冲区，worker 通过 CUDA IPC 打开它们；跨进程不传递可解引用的设备地址。RHS 和解也复用独立 GPU 缓冲区。
+两种方式共用 `src/backend.c` 的分析、分解和回代实现。GPU 上有序且无重复的 CSR 经 GPU 完整校验和逐元素比较后，保留在桥接层自己的 GPU 缓冲区，直接交给 PanguLU 的原生 CSR 接口；32/64 位和零/一起始索引会归一化。每次分解都会检查实际结构和数值内容，结构变化会重新分析。direct 直接使用这些缓冲区，worker 通过 CUDA IPC 打开它们；跨进程不传递可解引用的设备地址。RHS 和解也复用独立 GPU 缓冲区。
 
-`cudssDataCreate` 同步创建该数据对象拥有的真实 Pangu handle；worker 同时完成子进程启动。首次分析使用这个尚未绑定矩阵的 handle，准备和校验仍在 `cudssExecute` 内。性能对照应同时报告 Create/DataCreate、首个求解阶段和完整冷启动延迟，避免将初始化位置变化误认为总耗时下降。授权或后端初始化失败会在 DataCreate 返回。
+`cudssDataCreate` 同步创建该数据对象拥有的真实 PanguLU handle；worker 同时完成子进程启动。首次分析使用这个尚未绑定矩阵的 handle，准备和校验仍在 `cudssExecute` 内。性能对照应同时报告 Create/DataCreate、首个求解阶段和完整冷启动延迟，避免将初始化位置变化误认为总耗时下降。授权或后端初始化失败会在 DataCreate 返回。
 
 长任务中同一数据对象保留自己的 native handle、缓冲区、IPC 映射和 dense 描述符。相同结构只做 L2 重分解；结构确实变化时，在相同设备、精度和矩阵类型的 L2 会话内重新分析，保留 handle。矩阵类型/精度/设备或复用策略变化，以及 native 失败后的重新分析，会建立新 handle。对象之间不共享因子状态。销毁时各输出一条 `PGL_BRIDGE_SUMMARY` 和 `PGL_BACKEND_SUMMARY`，记录真实创建、分析、重分解、分配和 IPC 次数。
 
@@ -104,7 +106,7 @@ HOST、混合内存和无序 CSR 保留严格的 HOST 规范化路径；CUDA IPC
 
 ## 可选后端测试
 
-测试页可手动选择原生 `cudss`、`mycudss-direct` 直接封装、`mycudss-worker` 独立进程封装和 `pangu`。前三者使用 COMSOL 随附的 NVIDIA cuDSS；Pangu 可另选 worker/direct 执行方式。
+测试页可手动选择原生 `cudss`、`mycudss-direct` 直接封装、`mycudss-worker` 独立进程封装和 `pangu`。前三者使用 COMSOL 随附的 NVIDIA cuDSS；PanguLU 可另选 worker/direct 执行方式。
 
 ```bash
 ./pangu-comsol test status

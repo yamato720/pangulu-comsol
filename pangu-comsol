@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Command-line entrypoint for this Pangu–COMSOL installation."""
+"""Command-line entrypoint for this PanguLU–COMSOL installation."""
 import pathlib
 import sys
 import os

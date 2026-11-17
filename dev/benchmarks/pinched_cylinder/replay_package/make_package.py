@@ -96,7 +96,7 @@ def stage():
                     'Keep failed traces as evidence; tracing is opt-in and bounded.']})
     (STAGE / 'NOTICE.txt').write_text('This is a private experimental replay bundle, separate from the production module.\n'
         'Original public case sources and copyright/license notices are preserved under upstream/MOOSE-with-Solved-Tech/.\n'
-        'NVIDIA CUDA/cuDSS SDK files, the Pangu SDK and device license keys must be provided by the destination installation.\n')
+        'NVIDIA CUDA/cuDSS SDK files, the PanguLU SDK and device license keys must be provided by the destination installation.\n')
     code_prefixes = ['src', 'upstream', 'provenance']
     code_files = [STAGE / x for x in ['replay.py', 'README-REPLAY.txt', 'NOTICE.txt']]
     for prefix in code_prefixes:
@@ -127,7 +127,7 @@ def stage():
             'one raw million PETSc matrix plus capture vectors', 'full final physical fields/CSV and model meshes',
             'success/failure logs, GPU traces, reports, hashes and environment lock metadata'],
         'excluded': ['Conda package cache and installed MOOSE environment', 'physics_cp checkpoint caches',
-            'machine-built executables, objects and shared libraries', 'Pangu/CUDA/cuDSS SDK binaries/headers and all license keys'],
+            'machine-built executables, objects and shared libraries', 'PanguLU/CUDA/cuDSS SDK binaries/headers and all license keys'],
         'deduplicated_identical_matrix': omitted})
     validation = WORK / 'acceptance/relocated workspace/pinched-cylinder-replay'
     if validation.is_dir():

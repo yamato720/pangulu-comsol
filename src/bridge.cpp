@@ -122,7 +122,7 @@ static cudssStatus_t rpc(cudssData_t d,int command){
  d->request.client_pid=getpid();d->request.data_id=d->data_id;
  if(direct_execution()){
   auto &api=local_api();if(!api.create||!api.dispatch||!api.destroy)return CUDSS_STATUS_NOT_INITIALIZED;
-  if(!d->local){d->local=api.create();if(!d->local)return CUDSS_STATUS_ALLOC_FAILED;log_event("direct_started","shared Pangu backend in COMSOL process; dependency-first loader scope");}
+  if(!d->local){d->local=api.create();if(!d->local)return CUDSS_STATUS_ALLOC_FAILED;log_event("direct_started","shared PanguLU backend in COMSOL process; dependency-first loader scope");}
   api.dispatch(d->local,&d->request,&d->last,d->memory);
  }else{
   cudssStatus_t status=start_worker(d);if(status!=CUDSS_STATUS_SUCCESS)return status;
@@ -328,7 +328,7 @@ cudssStatus_t cudssCreate(cudssHandle_t*h){
     cudaDeviceGetAttribute(&minor,cudaDevAttrComputeCapabilityMinor,(*h)->device)!=cudaSuccess){delete *h;*h=nullptr;return CUDSS_STATUS_NOT_INITIALIZED;}
  (*h)->device_kernels=major*10+minor>=PGL_DEVICE_MIN_CC;
 #endif
- log_event("create","cuDSS ABI 0.7.1 mapped to Pangu, no native cuDSS fallback");
+ log_event("create","cuDSS ABI 0.7.1 mapped to PanguLU, no native cuDSS fallback");
  log_event("execution_policy","version=v7_data_handle_lifecycle online_residual_check=off iterative_refinement=off diagnostic_matrix_hashes=off automatic_factor_retry=off");
  log_event("device_transport",(*h)->device_kernels?"GPU CSR exact validation and CUDA IPC enabled":PGL_DEVICE?"HOST fallback; GPU compute capability is below 7.5":"HOST fallback; build with PC_CUDA_COMPILER to enable GPU CSR");
  return CUDSS_STATUS_SUCCESS;
@@ -339,12 +339,12 @@ cudssStatus_t cudssSetStream(cudssHandle_t h,cudaStream_t stream){if(!h)return C
 cudssStatus_t cudssGetProperty(libraryPropertyType type,int*value){if(!value)return CUDSS_STATUS_INVALID_VALUE;switch(type){case MAJOR_VERSION:*value=0;break;case MINOR_VERSION:*value=7;break;case PATCH_LEVEL:*value=1;break;default:return CUDSS_STATUS_INVALID_VALUE;}return CUDSS_STATUS_SUCCESS;}
 cudssStatus_t cudssConfigCreate(cudssConfig_t*c){if(!c)return CUDSS_STATUS_INVALID_VALUE;*c=new(std::nothrow)cudssConfig;return *c?CUDSS_STATUS_SUCCESS:CUDSS_STATUS_ALLOC_FAILED;}
 cudssStatus_t cudssConfigDestroy(cudssConfig_t c){if(!c)return CUDSS_STATUS_INVALID_VALUE;delete c;return CUDSS_STATUS_SUCCESS;}
-cudssStatus_t cudssConfigSet(cudssConfig_t c,cudssConfigParam_t p,void*v,size_t n){if(!c||!v||!n||n>4096)return CUDSS_STATUS_INVALID_VALUE;if(p==CUDSS_CONFIG_SOLVE_MODE&&n>=4&&*(int*)v!=0)return CUDSS_STATUS_NOT_SUPPORTED;c->values[(int)p]=std::vector<unsigned char>((unsigned char*)v,(unsigned char*)v+n);PGL_DETAIL(char line[128];snprintf(line,sizeof(line),"param=%d bytes=%zu; numerical policy delegated to Pangu",(int)p,n);log_event("config",line);)return CUDSS_STATUS_SUCCESS;}
+cudssStatus_t cudssConfigSet(cudssConfig_t c,cudssConfigParam_t p,void*v,size_t n){if(!c||!v||!n||n>4096)return CUDSS_STATUS_INVALID_VALUE;if(p==CUDSS_CONFIG_SOLVE_MODE&&n>=4&&*(int*)v!=0)return CUDSS_STATUS_NOT_SUPPORTED;c->values[(int)p]=std::vector<unsigned char>((unsigned char*)v,(unsigned char*)v+n);PGL_DETAIL(char line[128];snprintf(line,sizeof(line),"param=%d bytes=%zu; numerical policy delegated to PanguLU",(int)p,n);log_event("config",line);)return CUDSS_STATUS_SUCCESS;}
 cudssStatus_t cudssConfigGet(cudssConfig_t c,cudssConfigParam_t p,void*v,size_t n,size_t*w){if(!c)return CUDSS_STATUS_INVALID_VALUE;auto it=c->values.find((int)p);if(it==c->values.end())return CUDSS_STATUS_NOT_SUPPORTED;if(w)*w=it->second.size();if(!v&&n==0)return CUDSS_STATUS_SUCCESS;if(n<it->second.size()||!v)return CUDSS_STATUS_INVALID_VALUE;memcpy(v,it->second.data(),it->second.size());return CUDSS_STATUS_SUCCESS;}
 cudssStatus_t cudssDataCreate(cudssHandle_t h,cudssData_t*d){
  if(!h||!d)return CUDSS_STATUS_INVALID_VALUE;*d=new(std::nothrow)cudssData;if(!*d)return CUDSS_STATUS_ALLOC_FAILED;
  /* A data object owns its native handle/worker. Initialize these resources
-  * here, where native Pangu callers create their handle as well. Matrix
+  * here, where native PanguLU callers create their handle as well. Matrix
   * snapshots, validation and analysis remain in cudssExecute. */
  static std::atomic<uint64_t> next_data_id{0};(*d)->data_id=++next_data_id;
  const double started=bridge_now();(*d)->request.device=h->device;
@@ -354,13 +354,13 @@ cudssStatus_t cudssDataCreate(cudssHandle_t h,cudssData_t*d){
  return CUDSS_STATUS_SUCCESS;
 }
 cudssStatus_t cudssDataDestroy(cudssHandle_t h,cudssData_t d){if(!d)return CUDSS_STATUS_INVALID_VALUE;if(h)cudaSetDevice(h->device);if(d->local){local_api().destroy(d->local);d->local=nullptr;}if(d->socket>=0){rpc(d,BR_CLOSE);close(d->socket);d->socket=-1;}if(d->worker>0){int status;waitpid(d->worker,&status,0);}unmap(d);free_device(d);data_summary(d);delete d;return CUDSS_STATUS_SUCCESS;}
-cudssStatus_t cudssDataSet(cudssHandle_t h,cudssData_t d,cudssDataParam_t p,void*v,size_t n){if(!h||!d||!v||n==0)return CUDSS_STATUS_INVALID_VALUE;if(p==CUDSS_DATA_INFO){if(n!=4)return CUDSS_STATUS_INVALID_VALUE;memcpy(&d->info,v,4);return CUDSS_STATUS_SUCCESS;}if(p==CUDSS_DATA_USER_HOST_INTERRUPT){if(n!=4)return CUDSS_STATUS_INVALID_VALUE;d->interrupt=(const int*)v;if(!d->logged_interrupt){log_event("host_interrupt_registered","checked between Pangu phases; in-phase asynchronous cancellation not implemented");d->logged_interrupt=true;}return CUDSS_STATUS_SUCCESS;}log_event("unsupported_data_set");return CUDSS_STATUS_NOT_SUPPORTED;}
+cudssStatus_t cudssDataSet(cudssHandle_t h,cudssData_t d,cudssDataParam_t p,void*v,size_t n){if(!h||!d||!v||n==0)return CUDSS_STATUS_INVALID_VALUE;if(p==CUDSS_DATA_INFO){if(n!=4)return CUDSS_STATUS_INVALID_VALUE;memcpy(&d->info,v,4);return CUDSS_STATUS_SUCCESS;}if(p==CUDSS_DATA_USER_HOST_INTERRUPT){if(n!=4)return CUDSS_STATUS_INVALID_VALUE;d->interrupt=(const int*)v;if(!d->logged_interrupt){log_event("host_interrupt_registered","checked between PanguLU phases; in-phase asynchronous cancellation not implemented");d->logged_interrupt=true;}return CUDSS_STATUS_SUCCESS;}log_event("unsupported_data_set");return CUDSS_STATUS_NOT_SUPPORTED;}
 cudssStatus_t cudssDataGet(cudssHandle_t h,cudssData_t d,cudssDataParam_t p,void*v,size_t n,size_t*w){
  if(!h||!d)return CUDSS_STATUS_INVALID_VALUE;
  if(p==CUDSS_DATA_INFO)return diagnostic_copy(v,n,w,&d->info,4);
- if(diagnostic_compat()&&p==CUDSS_DATA_NPIVOTS){if(!d->logged_pivots){log_event("diagnostic_semantics_not_equivalent","NPIVOTS=-1 means unavailable; Pangu public API does not expose perturbed-pivot counts");d->logged_pivots=true;}int64_t unknown=-1;return diagnostic_copy(v,n,w,&unknown,d->index_bytes);}
+ if(diagnostic_compat()&&p==CUDSS_DATA_NPIVOTS){if(!d->logged_pivots){log_event("diagnostic_semantics_not_equivalent","NPIVOTS=-1 means unavailable; PanguLU public API does not expose perturbed-pivot counts");d->logged_pivots=true;}int64_t unknown=-1;return diagnostic_copy(v,n,w,&unknown,d->index_bytes);}
  if(diagnostic_compat()&&p==CUDSS_DATA_MEMORY_ESTIMATES){
-  // Pangu's opaque ANALYSIS has already allocated its factorable state. These
+  // PanguLU's opaque ANALYSIS has already allocated its factorable state. These
   // are explicitly a remaining-buffer compatibility budget, not cuDSS LU
   // memory estimates; all unobservable components are left unspecified (zero).
   int64_t estimates[16]={};estimates[1]=(int64_t)(2*d->request.n*(d->request.value_type==5?16:8));
@@ -378,7 +378,7 @@ cudssStatus_t cudssExecute(cudssHandle_t h,int phase,cudssConfig_t c,cudssData_t
  int allowed=CUDSS_PHASE_ANALYSIS|CUDSS_PHASE_FACTORIZATION|CUDSS_PHASE_REFACTORIZATION|CUDSS_PHASE_SOLVE;if(phase<=0||(phase&~allowed))return CUDSS_STATUS_NOT_SUPPORTED;
  cudssStatus_t status;
  if((phase&CUDSS_PHASE_REORDERING)&&!(phase&CUDSS_PHASE_SYMBOLIC_FACTORIZATION)){
-  d->analyzed=false;d->factored=false;if(!d->logged_analysis){log_event("analysis_deferred","opaque Pangu analysis is performed once at the symbolic phase");d->logged_analysis=true;}
+  d->analyzed=false;d->factored=false;if(!d->logged_analysis){log_event("analysis_deferred","opaque PanguLU analysis is performed once at the symbolic phase");d->logged_analysis=true;}
  }
  if(phase&CUDSS_PHASE_SYMBOLIC_FACTORIZATION){status=stage_matrix(d,h,A);if(status)return status;status=rpc(d,BR_ANALYZE);if(status)return status;d->analyzed=true;d->factored=false;}
  if(phase&(CUDSS_PHASE_FACTORIZATION|CUDSS_PHASE_REFACTORIZATION)){

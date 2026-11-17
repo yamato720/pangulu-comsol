@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run S through Pangu or NVIDIA cuDSS, with the same CPU field validation."""
+"""Run S through PanguLU or NVIDIA cuDSS, with the same CPU field validation."""
 import argparse
 import csv
 import datetime
@@ -219,7 +219,7 @@ def main():
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     directory = ROOT / 'data/runs' / ('s_' + datetime.datetime.now().strftime('%Y%m%dT%H%M%S_%f'))
     directory.mkdir()
-    trial = dict(status='preparing', directory=str(directory), started_at=now(), requested_mode=args.frequencies, threads=args.threads, runs=[], scope='S Study 3; stored CFD/Mapping; COMSOL assembly; Pangu native licensed SDK; same physical DOFs vs saved CPU reference')
+    trial = dict(status='preparing', directory=str(directory), started_at=now(), requested_mode=args.frequencies, threads=args.threads, runs=[], scope='S Study 3; stored CFD/Mapping; COMSOL assembly; PanguLU native licensed SDK; same physical DOFs vs saved CPU reference')
     trial['solver_backend'] = args.backend
     if args.backend == 'cudss':
         trial['scope'] = 'S Study 3; stored CFD/Mapping; original NVIDIA cuDSS 0.7.1; same physical DOFs vs saved CPU reference'
@@ -245,7 +245,7 @@ def main():
             library = Path(pc.cfg()['comsol_root']) / 'ext/cudss/glnxa64/libcudss.so.0.7.1'
             trial['backend'] = {'libcudss.so.0.7.1': dict(path=str(library), sha256=pc.sha(library))}
             trial.pop('license')
-            trial['sdk_role'] = 'Java helper classpath only; native run does not load the Pangu core'
+            trial['sdk_role'] = 'Java helper classpath only; native run does not load the PanguLU core'
         snapshot = directory / 'source_snapshot'
         for relative in ['dev/benchmarks/s/run.py', 'dev/benchmarks/s/SStudy3.java', 'src/java/PanguModule.java', 'src/python/pangulu_comsol/runtime.py', 'src/worker.c', 'src/bridge.cpp', 'src/protocol.h', 'src/pattern_cache.h', 'config/runtime.json']:
             target = snapshot / relative

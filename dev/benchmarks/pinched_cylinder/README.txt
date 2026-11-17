@@ -13,11 +13,11 @@
    注意其MOOSE提交08315af82e、PETSc3.26.0与原案例锁定提交/文档版本不同。
 2. 原始QUAD4网格按原脚本 factor=45 细分，不做额外曲面投影。
    203401节点、202500壳单元、五个变量，1017005阶、45630025存储项。
-3. 完整应用以CPU MUMPS和原始Pangu PETSc插件分别求解，检查五个完整物理场。
+3. 完整应用以CPU MUMPS和原始PanguLU PETSc插件分别求解，检查五个完整物理场。
    附加标准PETSc二进制viewer导出A/b/x，原始输入文件保持不变。
 4. 读取第一组完整A/b/x，保留完整图及显式零项，并独立检查MUMPS解的残差。
    convert.py生成GPU测试的标准CSC以及原始点载荷RHS。
-5. 主测试直接使用原Pangu SDK GPU CSC L1/L2，比较mycudss-direct转发的真实
+5. 主测试直接使用原PanguLU SDK GPU CSC L1/L2，比较mycudss-direct转发的真实
    NVIDIA cuDSS0.7.1 GPU CSR，双方均为FP64实数通用LU。没有COMSOL/worker/IPC。
    数据转换、三组系数(1.00/1.01/0.99)、真解/RHS生成和上传不计入阶段时间。
    双方共用同一策略：只保留一份GPU系数缓冲区；最终测试采用原始单RHS负载。
@@ -26,7 +26,7 @@
 6. 按原CSC和RHS在CPU独立重算残差；已知解相对L2<=1e-6、残差<=1e-8。
    原始载荷结果额外与MUMPS线性解比较，相对L2<=1e-6。
    真实已映射库、完成标记、数值检查、GPU追踪零丢失共同判定成功。
-7. Pangu L0、L1及cuDSS各两次无追踪；L0/cuDSS各完成一次CUPTI追踪。
+7. PanguLU L0、L1及cuDSS各两次无追踪；L0/cuDSS各完成一次CUPTI追踪。
    L1的8RHS诊断追踪在约200秒中止，原始单RHS追踪也未在300秒内完成，均保留失败记录。
    不把异常追踪的等待时间混入正常性能。GPU时间取区间并集，不重复累计重叠。
    排序/分析包含厂商CPU工作，分别列出；原生阶段墙钟与GPU kernel时间分别列出。

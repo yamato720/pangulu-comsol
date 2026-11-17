@@ -1,0 +1,864 @@
+{
+  "status": "completed",
+  "completed_at": "2026-11-17T13:35:52.854189+08:00",
+  "directory": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403",
+  "findings": {
+    "answer": "The fixed-replay advantage was dominated by analysis reuse under repeated ANALYSIS requests. Real sweep stored CSR graphs change58 times, so both actual backends receive59 analysis requests. Numerical GPU factorization on this S case remains substantially slower for PanguLU; the current GPU bridge overhead is small.",
+    "timed_full59_seconds": {
+      "PanguLU": 209.439946268,
+      "cuDSS": 164.288945152,
+      "gap": 45.151001116
+    },
+    "trace_full59_seconds": {
+      "PanguLU": 232.176796273,
+      "cuDSS": 180.01034185,
+      "gap": 52.166454423000005
+    },
+    "trace_numerical_factor_GPU_ratio": 2.7887745395067416,
+    "timed_PanguLU_bridge_remainder_inside_execute_seconds": 0.619012610999988,
+    "timed_PanguLU_matrix_validation_update_seconds": 0.43305096415,
+    "timed_PanguLU_explicit_completion_sync_seconds": {
+      "1027": 0.0003817809999999998,
+      "4": 0.00025176699999999996,
+      "1008": 0.013118163000000002
+    },
+    "timed_PanguLU_explicit_completion_sync_total_seconds": 0.013751711000000002,
+    "control_repeat_analysis_initialization_plus_callbacks": {
+      "PanguLU": 7.049422084335666,
+      "cuDSS": 8.6473188736483
+    },
+    "control_matched_refactor_initialization_plus_callbacks": {
+      "PanguLU": 6.977835961988,
+      "cuDSS": 3.342328498685
+    },
+    "Native_cuDSS_phase_policy_time_reduction_percent": 61.34838384565236,
+    "real_sweep_counts": {
+      "PanguLU_analysis": 59,
+      "cuDSS_reorder": 59,
+      "cuDSS_symbolic": 59,
+      "PanguLU_numeric": 59,
+      "cuDSS_numeric": 59,
+      "PanguLU_refactor": 0,
+      "stored_pattern_changes": 58
+    }
+  },
+  "GPU_phase_comparison": [
+    {
+      "stage": "分析/重排/符号",
+      "PanguLU_GPU_kernel_seconds": 4.311895973,
+      "cuDSS_GPU_kernel_seconds": 10.788928652,
+      "PanguLU_minus_cuDSS_seconds": -6.477032678999999
+    },
+    {
+      "stage": "数值分解",
+      "PanguLU_GPU_kernel_seconds": 57.36851226900001,
+      "cuDSS_GPU_kernel_seconds": 20.571226342000003,
+      "PanguLU_minus_cuDSS_seconds": 36.797285927000004
+    },
+    {
+      "stage": "回代",
+      "PanguLU_GPU_kernel_seconds": 1.925975868,
+      "cuDSS_GPU_kernel_seconds": 0.952352284,
+      "PanguLU_minus_cuDSS_seconds": 0.973623584
+    }
+  ],
+  "previous_production_measurement": {
+    "cudss": {
+      "runAll_seconds": 160.548604809,
+      "process_wall_seconds": 199.10543846999644
+    },
+    "pangu": {
+      "runAll_seconds": 194.55833207100002,
+      "process_wall_seconds": 236.0989777430077
+    }
+  },
+  "metrics": {
+    "traced-pangu-20k-r1": {
+      "path": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/traced-pangu-20k-r1/attribution.json",
+      "runAll_seconds": 8.109641625,
+      "API_phase_wall": {
+        "1": {
+          "calls": 1,
+          "wall_seconds": 5.9050000000000006e-05
+        },
+        "2": {
+          "calls": 1,
+          "wall_seconds": 1.061981446
+        },
+        "4": {
+          "calls": 1,
+          "wall_seconds": 1.080907061
+        },
+        "1008": {
+          "calls": 2,
+          "wall_seconds": 0.043574222
+        }
+      },
+      "GPU": {
+        "memcpy_union_seconds": 0.07588982100000001,
+        "memset_union_seconds": 0.001004694,
+        "kernel_union_seconds": 1.0832240130000002,
+        "active_union_seconds": 1.1601185280000001
+      }
+    },
+    "traced-cudss-20k-r1": {
+      "path": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/traced-cudss-20k-r1/attribution.json",
+      "runAll_seconds": 7.993314681,
+      "API_phase_wall": {
+        "1": {
+          "calls": 1,
+          "wall_seconds": 0.803261701
+        },
+        "2": {
+          "calls": 1,
+          "wall_seconds": 0.14640133400000002
+        },
+        "4": {
+          "calls": 1,
+          "wall_seconds": 0.420922907
+        },
+        "1008": {
+          "calls": 2,
+          "wall_seconds": 0.026023965
+        }
+      },
+      "GPU": {
+        "memcpy_union_seconds": 0.07732733900000001,
+        "memset_union_seconds": 0.003524016,
+        "kernel_union_seconds": 0.53585601,
+        "active_union_seconds": 0.616707365
+      }
+    },
+    "traced-pangu-full59-r1": {
+      "path": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/traced-pangu-full59-r1/attribution.json",
+      "runAll_seconds": 232.176796273,
+      "API_phase_wall": {
+        "1": {
+          "calls": 59,
+          "wall_seconds": 0.0031335960000000015
+        },
+        "2": {
+          "calls": 59,
+          "wall_seconds": 65.50238861300001
+        },
+        "4": {
+          "calls": 59,
+          "wall_seconds": 60.01946224200002
+        },
+        "1008": {
+          "calls": 118,
+          "wall_seconds": 2.2979344100000008
+        }
+      },
+      "GPU": {
+        "memcpy_union_seconds": 5.060470808000001,
+        "memset_union_seconds": 0.076925163,
+        "kernel_union_seconds": 63.60638411,
+        "active_union_seconds": 68.74378008100001
+      }
+    },
+    "traced-cudss-full59-r1": {
+      "path": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/traced-cudss-full59-r1/attribution.json",
+      "runAll_seconds": 180.01034185,
+      "API_phase_wall": {
+        "1": {
+          "calls": 59,
+          "wall_seconds": 48.359771791
+        },
+        "2": {
+          "calls": 59,
+          "wall_seconds": 10.607485687999999
+        },
+        "4": {
+          "calls": 59,
+          "wall_seconds": 1.4497920929999997
+        },
+        "1008": {
+          "calls": 118,
+          "wall_seconds": 0.056402563000000024
+        }
+      },
+      "GPU": {
+        "memcpy_union_seconds": 4.469573228000001,
+        "memset_union_seconds": 0.218348813,
+        "kernel_union_seconds": 32.312507278000005,
+        "active_union_seconds": 37.000429319000006
+      }
+    },
+    "timed-pangu-full59": {
+      "path": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/timed-pangu-full59/attribution.json",
+      "runAll_seconds": 209.439946268,
+      "API_phase_wall": {
+        "1": {
+          "calls": 59,
+          "wall_seconds": 0.0028347960000000005
+        },
+        "2": {
+          "calls": 59,
+          "wall_seconds": 56.238154275
+        },
+        "4": {
+          "calls": 59,
+          "wall_seconds": 57.710671469000005
+        },
+        "1008": {
+          "calls": 118,
+          "wall_seconds": 2.1582946560000003
+        }
+      },
+      "GPU": null
+    },
+    "timed-cudss-full59": {
+      "path": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/timed-cudss-full59/attribution.json",
+      "runAll_seconds": 164.288945152,
+      "API_phase_wall": {
+        "1": {
+          "calls": 59,
+          "wall_seconds": 48.438382627
+        },
+        "2": {
+          "calls": 59,
+          "wall_seconds": 11.181930294999997
+        },
+        "4": {
+          "calls": 59,
+          "wall_seconds": 1.1578236789999996
+        },
+        "1008": {
+          "calls": 118,
+          "wall_seconds": 0.04399748000000002
+        }
+      },
+      "GPU": null
+    }
+  },
+  "controlled_reuse": {
+    "status": "completed",
+    "scope": "Same captured S graph. Coefficients alternate A0 and1.01*A0; each RHS is independently generated for its matrix. Only caller phase schedule changes. Six numeric iterations, two RHS each; three independent processes per backend/policy.",
+    "source_sha256": "90d98f627b68bf4513afc4402856b5f52e1dee6bd1fa3f8b2e20c2211f78628c",
+    "completed": [
+      {
+        "block": 1,
+        "backend": "cudss",
+        "policy": "repeat-analysis",
+        "factor_seconds": 8.38393667097,
+        "solve_seconds": 0.1168761220469,
+        "callback_seconds": 8.500812793,
+        "initialization_seconds": 0.0293034199858,
+        "checks_passed": 12,
+        "maximum_relative_error": 5.77683769704e-10,
+        "SDK_phase_counts": {},
+        "backend_summary": [],
+        "directory": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/reuse-control/1-cudss-repeat-analysis",
+        "initialization_plus_callbacks_seconds": 8.5301162129858
+      },
+      {
+        "block": 1,
+        "backend": "pangu",
+        "policy": "repeat-analysis",
+        "factor_seconds": 6.8260266830019996,
+        "solve_seconds": 0.2323642830597,
+        "callback_seconds": 7.058390966067,
+        "initialization_seconds": 0.194586997997,
+        "checks_passed": 12,
+        "maximum_relative_error": 2.42724947539e-09,
+        "SDK_phase_counts": {
+          "1027": 1,
+          "4": 1,
+          "1008": 12,
+          "8": 5
+        },
+        "backend_summary": [
+          {
+            "pid": 299974,
+            "client_pid": 299974,
+            "data_id": 1,
+            "handle_create_calls": 1,
+            "handles_created": 1,
+            "handle_destroy_calls": 1,
+            "analysis_calls": 1,
+            "handle_reanalyses": 0,
+            "numeric_calls": 1,
+            "refactor_calls": 5,
+            "solve_calls": 12,
+            "phase_failures": 0,
+            "vector_create_calls": 2,
+            "vector_destroy_calls": 2,
+            "device_allocations": 0,
+            "device_frees": 0,
+            "backend_buffer_bytes_live": 0,
+            "backend_buffer_bytes_peak": 0,
+            "matrix_ipc_opens": 0,
+            "matrix_ipc_closes": 0,
+            "dense_ipc_opens": 0,
+            "dense_ipc_closes": 0,
+            "cleanup_errors": 0
+          }
+        ],
+        "directory": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/reuse-control/1-pangu-repeat-analysis",
+        "initialization_plus_callbacks_seconds": 7.252977964064
+      },
+      {
+        "block": 1,
+        "backend": "cudss",
+        "policy": "refactor",
+        "factor_seconds": 3.20134399997,
+        "solve_seconds": 0.1050660970214,
+        "callback_seconds": 3.306410096989,
+        "initialization_seconds": 0.0164809249982,
+        "checks_passed": 12,
+        "maximum_relative_error": 5.77644977356e-10,
+        "SDK_phase_counts": {},
+        "backend_summary": [],
+        "directory": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/reuse-control/1-cudss-refactor",
+        "initialization_plus_callbacks_seconds": 3.3228910219872
+      },
+      {
+        "block": 1,
+        "backend": "pangu",
+        "policy": "refactor",
+        "factor_seconds": 6.785433516978999,
+        "solve_seconds": 0.21830703597509998,
+        "callback_seconds": 7.003740552955,
+        "initialization_seconds": 0.160874941008,
+        "checks_passed": 12,
+        "maximum_relative_error": 3.63503536516e-09,
+        "SDK_phase_counts": {
+          "1027": 1,
+          "4": 1,
+          "1008": 12,
+          "8": 5
+        },
+        "backend_summary": [
+          {
+            "pid": 300075,
+            "client_pid": 300075,
+            "data_id": 1,
+            "handle_create_calls": 1,
+            "handles_created": 1,
+            "handle_destroy_calls": 1,
+            "analysis_calls": 1,
+            "handle_reanalyses": 0,
+            "numeric_calls": 1,
+            "refactor_calls": 5,
+            "solve_calls": 12,
+            "phase_failures": 0,
+            "vector_create_calls": 2,
+            "vector_destroy_calls": 2,
+            "device_allocations": 0,
+            "device_frees": 0,
+            "backend_buffer_bytes_live": 0,
+            "backend_buffer_bytes_peak": 0,
+            "matrix_ipc_opens": 0,
+            "matrix_ipc_closes": 0,
+            "dense_ipc_opens": 0,
+            "dense_ipc_closes": 0,
+            "cleanup_errors": 0
+          }
+        ],
+        "directory": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/reuse-control/1-pangu-refactor",
+        "initialization_plus_callbacks_seconds": 7.164615493963
+      },
+      {
+        "block": 2,
+        "backend": "pangu",
+        "policy": "refactor",
+        "factor_seconds": 6.289248547981,
+        "solve_seconds": 0.1766149670293,
+        "callback_seconds": 6.465863515016,
+        "initialization_seconds": 0.144965134008,
+        "checks_passed": 12,
+        "maximum_relative_error": 3.00332569964e-09,
+        "SDK_phase_counts": {
+          "1027": 1,
+          "4": 1,
+          "1008": 12,
+          "8": 5
+        },
+        "backend_summary": [
+          {
+            "pid": 300135,
+            "client_pid": 300135,
+            "data_id": 1,
+            "handle_create_calls": 1,
+            "handles_created": 1,
+            "handle_destroy_calls": 1,
+            "analysis_calls": 1,
+            "handle_reanalyses": 0,
+            "numeric_calls": 1,
+            "refactor_calls": 5,
+            "solve_calls": 12,
+            "phase_failures": 0,
+            "vector_create_calls": 2,
+            "vector_destroy_calls": 2,
+            "device_allocations": 0,
+            "device_frees": 0,
+            "backend_buffer_bytes_live": 0,
+            "backend_buffer_bytes_peak": 0,
+            "matrix_ipc_opens": 0,
+            "matrix_ipc_closes": 0,
+            "dense_ipc_opens": 0,
+            "dense_ipc_closes": 0,
+            "cleanup_errors": 0
+          }
+        ],
+        "directory": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/reuse-control/2-pangu-refactor",
+        "initialization_plus_callbacks_seconds": 6.6108286490240005
+      },
+      {
+        "block": 2,
+        "backend": "cudss",
+        "policy": "refactor",
+        "factor_seconds": 3.230405262033,
+        "solve_seconds": 0.1018157559448,
+        "callback_seconds": 3.3322210179800003,
+        "initialization_seconds": 0.0143172710086,
+        "checks_passed": 12,
+        "maximum_relative_error": 4.58538431514e-10,
+        "SDK_phase_counts": {},
+        "backend_summary": [],
+        "directory": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/reuse-control/2-cudss-refactor",
+        "initialization_plus_callbacks_seconds": 3.3465382889886004
+      },
+      {
+        "block": 2,
+        "backend": "pangu",
+        "policy": "repeat-analysis",
+        "factor_seconds": 6.352167075002,
+        "solve_seconds": 0.19257296997239998,
+        "callback_seconds": 6.544740044975,
+        "initialization_seconds": 0.140238688007,
+        "checks_passed": 12,
+        "maximum_relative_error": 4.39590693364e-09,
+        "SDK_phase_counts": {
+          "1027": 1,
+          "4": 1,
+          "1008": 12,
+          "8": 5
+        },
+        "backend_summary": [
+          {
+            "pid": 300246,
+            "client_pid": 300246,
+            "data_id": 1,
+            "handle_create_calls": 1,
+            "handles_created": 1,
+            "handle_destroy_calls": 1,
+            "analysis_calls": 1,
+            "handle_reanalyses": 0,
+            "numeric_calls": 1,
+            "refactor_calls": 5,
+            "solve_calls": 12,
+            "phase_failures": 0,
+            "vector_create_calls": 2,
+            "vector_destroy_calls": 2,
+            "device_allocations": 0,
+            "device_frees": 0,
+            "backend_buffer_bytes_live": 0,
+            "backend_buffer_bytes_peak": 0,
+            "matrix_ipc_opens": 0,
+            "matrix_ipc_closes": 0,
+            "dense_ipc_opens": 0,
+            "dense_ipc_closes": 0,
+            "cleanup_errors": 0
+          }
+        ],
+        "directory": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/reuse-control/2-pangu-repeat-analysis",
+        "initialization_plus_callbacks_seconds": 6.684978732982
+      },
+      {
+        "block": 2,
+        "backend": "cudss",
+        "policy": "repeat-analysis",
+        "factor_seconds": 8.59454716599,
+        "solve_seconds": 0.0967222549953,
+        "callback_seconds": 8.69126942099,
+        "initialization_seconds": 0.015102912992,
+        "checks_passed": 12,
+        "maximum_relative_error": 4.2793152568e-10,
+        "SDK_phase_counts": {},
+        "backend_summary": [],
+        "directory": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/reuse-control/2-cudss-repeat-analysis",
+        "initialization_plus_callbacks_seconds": 8.706372333982001
+      },
+      {
+        "block": 3,
+        "backend": "cudss",
+        "policy": "repeat-analysis",
+        "factor_seconds": 8.59029230298,
+        "solve_seconds": 0.102392094006,
+        "callback_seconds": 8.69268439698,
+        "initialization_seconds": 0.0127836769971,
+        "checks_passed": 12,
+        "maximum_relative_error": 5.58273855922e-10,
+        "SDK_phase_counts": {},
+        "backend_summary": [],
+        "directory": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/reuse-control/3-cudss-repeat-analysis",
+        "initialization_plus_callbacks_seconds": 8.705468073977102
+      },
+      {
+        "block": 3,
+        "backend": "pangu",
+        "policy": "repeat-analysis",
+        "factor_seconds": 6.81968832895,
+        "solve_seconds": 0.24139698999349998,
+        "callback_seconds": 7.061085318946,
+        "initialization_seconds": 0.149224237015,
+        "checks_passed": 12,
+        "maximum_relative_error": 1.25249449876e-07,
+        "SDK_phase_counts": {
+          "1027": 1,
+          "4": 1,
+          "1008": 12,
+          "8": 5
+        },
+        "backend_summary": [
+          {
+            "pid": 300407,
+            "client_pid": 300407,
+            "data_id": 1,
+            "handle_create_calls": 1,
+            "handles_created": 1,
+            "handle_destroy_calls": 1,
+            "analysis_calls": 1,
+            "handle_reanalyses": 0,
+            "numeric_calls": 1,
+            "refactor_calls": 5,
+            "solve_calls": 12,
+            "phase_failures": 0,
+            "vector_create_calls": 2,
+            "vector_destroy_calls": 2,
+            "device_allocations": 0,
+            "device_frees": 0,
+            "backend_buffer_bytes_live": 0,
+            "backend_buffer_bytes_peak": 0,
+            "matrix_ipc_opens": 0,
+            "matrix_ipc_closes": 0,
+            "dense_ipc_opens": 0,
+            "dense_ipc_closes": 0,
+            "cleanup_errors": 0
+          }
+        ],
+        "directory": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/reuse-control/3-pangu-repeat-analysis",
+        "initialization_plus_callbacks_seconds": 7.2103095559609995
+      },
+      {
+        "block": 3,
+        "backend": "cudss",
+        "policy": "refactor",
+        "factor_seconds": 3.237900169041,
+        "solve_seconds": 0.1045349750494,
+        "callback_seconds": 3.342435144097,
+        "initialization_seconds": 0.0151210409822,
+        "checks_passed": 12,
+        "maximum_relative_error": 5.69737282169e-10,
+        "SDK_phase_counts": {},
+        "backend_summary": [],
+        "directory": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/reuse-control/3-cudss-refactor",
+        "initialization_plus_callbacks_seconds": 3.3575561850792
+      },
+      {
+        "block": 3,
+        "backend": "pangu",
+        "policy": "refactor",
+        "factor_seconds": 6.749116282968,
+        "solve_seconds": 0.2440975049977,
+        "callback_seconds": 6.99321378797,
+        "initialization_seconds": 0.164849955007,
+        "checks_passed": 12,
+        "maximum_relative_error": 3.30869053947e-09,
+        "SDK_phase_counts": {
+          "1027": 1,
+          "4": 1,
+          "1008": 12,
+          "8": 5
+        },
+        "backend_summary": [
+          {
+            "pid": 300499,
+            "client_pid": 300499,
+            "data_id": 1,
+            "handle_create_calls": 1,
+            "handles_created": 1,
+            "handle_destroy_calls": 1,
+            "analysis_calls": 1,
+            "handle_reanalyses": 0,
+            "numeric_calls": 1,
+            "refactor_calls": 5,
+            "solve_calls": 12,
+            "phase_failures": 0,
+            "vector_create_calls": 2,
+            "vector_destroy_calls": 2,
+            "device_allocations": 0,
+            "device_frees": 0,
+            "backend_buffer_bytes_live": 0,
+            "backend_buffer_bytes_peak": 0,
+            "matrix_ipc_opens": 0,
+            "matrix_ipc_closes": 0,
+            "dense_ipc_opens": 0,
+            "dense_ipc_closes": 0,
+            "cleanup_errors": 0
+          }
+        ],
+        "directory": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/reuse-control/3-pangu-refactor",
+        "initialization_plus_callbacks_seconds": 7.158063742977
+      }
+    ],
+    "summary": {
+      "cudss/repeat-analysis": {
+        "factor_seconds": 8.52292537998,
+        "solve_seconds": 0.10533015701606667,
+        "callback_seconds": 8.62825553699,
+        "initialization_seconds": 0.0190633366583,
+        "initialization_plus_callbacks_seconds": 8.6473188736483
+      },
+      "pangu/repeat-analysis": {
+        "factor_seconds": 6.665960695651333,
+        "solve_seconds": 0.22211141434186665,
+        "callback_seconds": 6.888072109996,
+        "initialization_seconds": 0.16134997433966666,
+        "initialization_plus_callbacks_seconds": 7.049422084335666
+      },
+      "cudss/refactor": {
+        "factor_seconds": 3.2232164770146667,
+        "solve_seconds": 0.10380560933853333,
+        "callback_seconds": 3.3270220863553335,
+        "initialization_seconds": 0.015306412329666667,
+        "initialization_plus_callbacks_seconds": 3.342328498685
+      },
+      "pangu/refactor": {
+        "factor_seconds": 6.607932782642666,
+        "solve_seconds": 0.21300650266736665,
+        "callback_seconds": 6.820939285313667,
+        "initialization_seconds": 0.15689667667433335,
+        "initialization_plus_callbacks_seconds": 6.977835961988
+      }
+    }
+  },
+  "PanguLU_timed_SDK_phases": {
+    "1027": {
+      "calls": 59,
+      "wall_seconds": 56.080513666,
+      "GPU_active_seconds": null,
+      "GPU_kernel_seconds": null
+    },
+    "4": {
+      "calls": 59,
+      "wall_seconds": 57.37844873900001,
+      "GPU_active_seconds": null,
+      "GPU_kernel_seconds": null
+    },
+    "8": {
+      "calls": 0,
+      "wall_seconds": 0,
+      "GPU_active_seconds": null,
+      "GPU_kernel_seconds": null
+    },
+    "1008": {
+      "calls": 118,
+      "wall_seconds": 2.03198018,
+      "GPU_active_seconds": null,
+      "GPU_kernel_seconds": null
+    }
+  },
+  "PanguLU_timed_bridge_nested_parts": {
+    "device_full": {
+      "calls": 59,
+      "total_seconds": 0.12790460107999999,
+      "status_readback_bytes": 236
+    },
+    "device_exact_refresh": {
+      "calls": 59,
+      "total_seconds": 0.30514636307000004,
+      "status_readback_bytes": 236
+    }
+  },
+  "PanguLU_bridge_summary": [
+    {
+      "pid": 301154,
+      "data_id": 1,
+      "execution": "direct",
+      "analysis_requests": 59,
+      "numeric_requests": 59,
+      "solve_requests": 118,
+      "worker_starts": 0,
+      "device_validations": 118,
+      "host_full_stages": 0,
+      "structure_epochs_created": 59,
+      "device_value_epochs_created": 59,
+      "matrix_allocations": 1,
+      "dense_allocations": 1,
+      "status_allocations": 1,
+      "device_frees": 3,
+      "bridge_device_bytes_live": 0,
+      "bridge_device_bytes_peak": 363958600,
+      "cleanup_errors": 0,
+      "matrix_reserve_oom_fallbacks": 0,
+      "confirmed_device_pattern_changes": 58,
+      "n_min": 300475,
+      "n_max": 300475,
+      "nnz_min": 15688426,
+      "nnz_max": 15688721
+    }
+  ],
+  "PanguLU_backend_summary": [
+    {
+      "pid": 301154,
+      "client_pid": 301154,
+      "data_id": 1,
+      "handle_create_calls": 1,
+      "handles_created": 1,
+      "handle_destroy_calls": 1,
+      "analysis_calls": 59,
+      "handle_reanalyses": 58,
+      "numeric_calls": 59,
+      "refactor_calls": 0,
+      "solve_calls": 118,
+      "phase_failures": 0,
+      "vector_create_calls": 2,
+      "vector_destroy_calls": 2,
+      "device_allocations": 0,
+      "device_frees": 0,
+      "backend_buffer_bytes_live": 0,
+      "backend_buffer_bytes_peak": 0,
+      "matrix_ipc_opens": 0,
+      "matrix_ipc_closes": 0,
+      "dense_ipc_opens": 0,
+      "dense_ipc_closes": 0,
+      "cleanup_errors": 0
+    }
+  ],
+  "validation": {
+    "full_or_single_field_checks_passed": 952,
+    "controlled_known_solution_checks_passed": 144,
+    "dropped_GPU_records": 0,
+    "all_original_files_unchanged": true,
+    "preference_entries_unchanged": true
+  },
+  "protected_file_checks": {
+    "/home/lwf/comsol-projects/pangulu-comsol/config/runtime.json": true,
+    "/home/lwf/Comsol6.4/comsol64/multiphysics/bin/comsol": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/pangu/pangulu-26.46-CUDA-12.9-x86_64-glibc2.27/lib/libpangulu.so": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/licence/pangulu-4e0e9e90-394d-454d-a166-6971b0df71f4.license.key": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/libcudss.so.0.7.1": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/build.log": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/manifest.json": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/native_license": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/PanguModule.jar": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/pangulu_worker": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/PanguDesktop.jar": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/libpangu_backend.so": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/device.o": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/libcudss.so": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/java.log": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/libcudss.so.0": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/java/PanguBatch.class": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/java/org/pangulu/comsol/PanguModule$Binding.class": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/java/org/pangulu/comsol/PanguDesktop.class": true,
+    "/home/lwf/comsol-projects/pangulu-comsol/runtime/module/java/org/pangulu/comsol/PanguModule.class": true
+  },
+  "preference_checks": {
+    "/home/lwf/.comsol/v64/comsolserver.prefs": true,
+    "/home/lwf/.comsol/v64/comsol.prefs": true
+  },
+  "provenance": {
+    "commit": "ae57500fb23fb0884765908bcb6daa95758f76e8",
+    "working_patch_sha256": "e4a7b181f31f2e3275301f11276ccb7cfbfcd54cf88fef46405256665122f7ba",
+    "SDK": {
+      "version": "26.46",
+      "abi": 2,
+      "path": "/home/lwf/comsol-projects/pangulu-comsol/pangu/pangulu-26.46-CUDA-12.9-x86_64-glibc2.27",
+      "core_sha256": "1fbb30f2246f5d1d79da9111cb5780dcecc736eaba85bd2d61455a3649747402"
+    },
+    "native_cudss": "/home/lwf/Comsol6.4/comsol64/multiphysics/ext/cudss/glnxa64/libcudss.so.0.7.1",
+    "native_cudss_sha256": "1813f5de39466a8e3f8abd61bab1e4dc439255dd99fa062dc415a970b9ae3190",
+    "profile_sources": {
+      "activity.h": "c5504ce8292ed9f9e9c80e740ebfaea6f0cf553d8bcb6afebd60bf2d88cbedc7",
+      "observer_entry.cpp": "886023ed6a5ef1a0a2c10b7ec8a11207aeba60a5d7144b0d91dc7f41403c8a1d",
+      "native-timed.cpp": "b5cb4c1834489f7072a360df6629260fca0b1c51fc542bf7206e464b6eb8e54a",
+      "SStudy3.java": "32f6edffc967193ab4201b8f03171dfb2245a9f89345ccbdd0e9d60bcce6653c",
+      "activity.cpp": "28c7063f4a9f641dee953c23983c90c9b7cc5bcd109ea240fa4b9331585e0f8e",
+      "production/pattern_cache.h": "24489f4d98e740d3900440018f2c19f918d59381862fd01720a582e225d1418e",
+      "production/worker.c": "85335e687d3f5467232c4a605b3d30e41680cca3c71cb4845ee4a984d06c445c",
+      "production/backend.h": "ec50d86fe61e16588f79f4e134ca1691d003cfef7b9944d1e6f301bf634bd7ea",
+      "production/protocol.h": "53da72d7195e5be66adb2e54a6f455788e9c22085848d3c54219a19aa3ff451d",
+      "production/bridge.cpp": "7dd8d75a8e2708561825b54ec7acc9d6ac6f16cd796c658472383da176e992d6",
+      "production/device.h": "c9ed0075f0764a644cd2deb3029b203d2c7b7bd6a0bddd38978ec2f2e07373f4",
+      "production/profile.h": "5436632c3cc9ef98992457001dd6f67b9ccd4d88233b1209869fd4aa6cbb1b23",
+      "production/backend.c": "9b5f56617e210d6f9f65eb85e39216e645767515c1b94b86eb4898d1843b5023",
+      "production/native_license.c": "81cfa9491c58d7ff5fea81e133bfe99ad8293ecce93c65da52ae5b7d90ca54a7",
+      "production/device.cu": "1603979a86bedaacbe53d21aa0bd220e66e518873fb2d50726ede5a956032d9e",
+      "production/java/PanguModule.java": "50ce73df5fee52122922d8806cf83a43aefa647f87b2c017aa72bc846eae2dca",
+      "production/java/PanguBatch.java": "d65a75d480dc67163f6252ca0758f55351d7d269c1dafcb8e0efbcea879ccfd0",
+      "production/java/PanguDesktop.java": "442295e1da14301171eb9ad1f03c6096825ffc29c34e8a473ecd01dd347375c8",
+      "production/python/pangulu_comsol/paths.py": "454f7b69cc3fc37115695e96e875a6f4f5ee3529d263edffd154cdfd2de58163",
+      "production/python/pangulu_comsol/execution.py": "29729f766d65101ddc45b43741cace47001df4f0e7b527d86c1e391d2758bc55",
+      "production/python/pangulu_comsol/tui.py": "88a043af68c37020d810857e06ea683598b4abf50ba8af87949fa6ae1e4d97e8",
+      "production/python/pangulu_comsol/cli.py": "990f8a68362885406e80f861e02498664d10fa45d028e3657d71aad37b216a2c",
+      "production/python/pangulu_comsol/runtime.py": "4c8e2a9ecdf1ea919e21ddb9969272d0677162767ef6b86dace2efe1b3df56f6",
+      "production/python/pangulu_comsol/__main__.py": "03da3b8d0d5e57a416ad7a7fd48faaf442f40d031cc5b2841c2df4333b48b99d",
+      "production/python/pangulu_comsol/__init__.py": "bbd989c8fd6b1c50b28269bde218471c85ce769e3e44c509e612aa1ed2a4bc56",
+      "production/python/pangulu_comsol/testing.py": "e7d791414bf204f00f6e31c75ec107fc12af2f390859ca59bb7458cb7be6aedf",
+      "production/include/cudss/cudss.h": "945af38a6d7070117f8d1bb659dc54b1899f302c5400fb4e018cffa6d1ed38a0",
+      "production/include/cudss/cudss_distributed_interface.h": "ba3dc29467f1dd2c195eff3f7d49e38c07f849c4019cdaccf06daed9b30e2229",
+      "production/include/cudss/cudss_threading_interface.h": "191fe4a426e4d8872f0d3fbf868f5a34b318a1c29f44a5b973a9803d57fe7221"
+    },
+    "no_extra_native_synchronization": true,
+    "observer": "Normal external backend DSO dependency, opt-in native constructor. No Java runtime-system API, LD_PRELOAD, additional native synchronization or preference change. Observer clock bounds coverage.",
+    "initial_observer_plan": "Explicit normal System.load in helper; no LD_PRELOAD; concurrent CUPTI activity and CLOCK_MONOTONIC timestamps."
+  },
+  "observer_method": {
+    "method": "Normal external cuDSS backend DSO dependency; constructor opt-in via native environment. No Java runtime-system calls or preference changes.",
+    "initial_attempt": "Java getenv denied by existing COMSOL security preferences; initial failure preserved.",
+    "trace_scope_note": "GPU clock record establishes actual observer start; analyze coverage against runAll begin.",
+    "sources_sha256": {
+      "activity.h": "c5504ce8292ed9f9e9c80e740ebfaea6f0cf553d8bcb6afebd60bf2d88cbedc7",
+      "observer_entry.cpp": "886023ed6a5ef1a0a2c10b7ec8a11207aeba60a5d7144b0d91dc7f41403c8a1d",
+      "native-timed.cpp": "b5cb4c1834489f7072a360df6629260fca0b1c51fc542bf7206e464b6eb8e54a",
+      "SStudy3.java": "32f6edffc967193ab4201b8f03171dfb2245a9f89345ccbdd0e9d60bcce6653c",
+      "activity.cpp": "28c7063f4a9f641dee953c23983c90c9b7cc5bcd109ea240fa4b9331585e0f8e",
+      "production/pattern_cache.h": "24489f4d98e740d3900440018f2c19f918d59381862fd01720a582e225d1418e",
+      "production/worker.c": "85335e687d3f5467232c4a605b3d30e41680cca3c71cb4845ee4a984d06c445c",
+      "production/backend.h": "ec50d86fe61e16588f79f4e134ca1691d003cfef7b9944d1e6f301bf634bd7ea",
+      "production/protocol.h": "53da72d7195e5be66adb2e54a6f455788e9c22085848d3c54219a19aa3ff451d",
+      "production/bridge.cpp": "7dd8d75a8e2708561825b54ec7acc9d6ac6f16cd796c658472383da176e992d6",
+      "production/device.h": "c9ed0075f0764a644cd2deb3029b203d2c7b7bd6a0bddd38978ec2f2e07373f4",
+      "production/profile.h": "5436632c3cc9ef98992457001dd6f67b9ccd4d88233b1209869fd4aa6cbb1b23",
+      "production/backend.c": "9b5f56617e210d6f9f65eb85e39216e645767515c1b94b86eb4898d1843b5023",
+      "production/native_license.c": "81cfa9491c58d7ff5fea81e133bfe99ad8293ecce93c65da52ae5b7d90ca54a7",
+      "production/device.cu": "1603979a86bedaacbe53d21aa0bd220e66e518873fb2d50726ede5a956032d9e",
+      "production/java/PanguModule.java": "50ce73df5fee52122922d8806cf83a43aefa647f87b2c017aa72bc846eae2dca",
+      "production/java/PanguBatch.java": "d65a75d480dc67163f6252ca0758f55351d7d269c1dafcb8e0efbcea879ccfd0",
+      "production/java/PanguDesktop.java": "442295e1da14301171eb9ad1f03c6096825ffc29c34e8a473ecd01dd347375c8",
+      "production/python/pangulu_comsol/paths.py": "454f7b69cc3fc37115695e96e875a6f4f5ee3529d263edffd154cdfd2de58163",
+      "production/python/pangulu_comsol/execution.py": "29729f766d65101ddc45b43741cace47001df4f0e7b527d86c1e391d2758bc55",
+      "production/python/pangulu_comsol/tui.py": "88a043af68c37020d810857e06ea683598b4abf50ba8af87949fa6ae1e4d97e8",
+      "production/python/pangulu_comsol/cli.py": "990f8a68362885406e80f861e02498664d10fa45d028e3657d71aad37b216a2c",
+      "production/python/pangulu_comsol/runtime.py": "4c8e2a9ecdf1ea919e21ddb9969272d0677162767ef6b86dace2efe1b3df56f6",
+      "production/python/pangulu_comsol/__main__.py": "03da3b8d0d5e57a416ad7a7fd48faaf442f40d031cc5b2841c2df4333b48b99d",
+      "production/python/pangulu_comsol/__init__.py": "bbd989c8fd6b1c50b28269bde218471c85ce769e3e44c509e612aa1ed2a4bc56",
+      "production/python/pangulu_comsol/testing.py": "e7d791414bf204f00f6e31c75ec107fc12af2f390859ca59bb7458cb7be6aedf",
+      "production/include/cudss/cudss.h": "945af38a6d7070117f8d1bb659dc54b1899f302c5400fb4e018cffa6d1ed38a0",
+      "production/include/cudss/cudss_distributed_interface.h": "ba3dc29467f1dd2c195eff3f7d49e38c07f849c4019cdaccf06daed9b30e2229",
+      "production/include/cudss/cudss_threading_interface.h": "191fe4a426e4d8872f0d3fbf868f5a34b318a1c29f44a5b973a9803d57fe7221"
+    }
+  },
+  "measurement_issue": "Initial Java getenv attempt rejected by COMSOL sandbox before solving. Preserved as failure; observer was then loaded as a normal external-backend dependency. No preferences changed.",
+  "limitations": [
+    "This measures the local300475-order S case on RTX4080Laptop at8threads. It does not explain the other1036043-order benchmark without its matrices and phase logs.",
+    "Each full-sweep diagnostic configuration has one process. The captured-S controlled experiment has3 independent processes per backend/policy. No statistical confidence interval is claimed.",
+    "Repeated COMSOL assembly can change stored numerical-zero patterns slightly. Full-sweep inputs and physical solutions are verified, but the two solver runs are not a byte-identical59-matrix stream. The controlled replay uses identical input bytes and scaled coefficients across backends/policies.",
+    "The control alternates A0 and1.01*A0 with exact graph held constant; generated RHS follows each matrix and preserves a known solution. Changing caller phase schedule is the tested intervention. It is not the full physical sweep.",
+    "CUPTI increases wall time, especially host/API work. GPU trace values are separate from timing-only results and are not subtracted from the earlier production gap to claim an exact causal percentage.",
+    "Native cuDSS Execute returns asynchronously; PanguLU SDK calls in this case mostly return after completion. Do not compare their host numeric API durations as GPU duration. Kernel-to-phase classification uses recorded CUDA launch API correlation IDs; all measured kernels were attributed.",
+    "The observer starts when the backend DSO is loaded. The first approximately4seconds of runAll are unobserved, not assumed to be CPU-only or GPU-idle. That prefix is explicitly reported.",
+    "Stored CSR graph change is established; a change in physical/nonzero connectivity is not. Whether differences arise from zero pruning or floating-point assembly needs adjacent-frequency matrix capture before any graph-normalization optimization.",
+    "Kernel activity identifies where time went, not FLOP count, sparse-fill count, bandwidth saturation or FP64 hardware occupancy. Those would need SDK/hardware-counter investigation.",
+    "No production source, numerical policy, SDK binary, license, original model or production component was changed by this investigation. No worker/IPC path is involved in the successful direct comparisons."
+  ],
+  "next_targets": [
+    "Inspect SDK numerical factorization kernels/fill for this S graph.",
+    "Capture adjacent-frequency stored CSR differences to establish whether a mathematically equivalent stable graph can preserve symbolic reuse; do not skip analysis merely because n/nnz or addresses match.",
+    "Use one-analysis-plus-refactor controls for stable graphs; keep repeated-analysis callback tests separately labeled."
+  ]
+}

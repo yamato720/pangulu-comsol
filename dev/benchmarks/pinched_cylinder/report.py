@@ -79,8 +79,8 @@ def main():
        'Official MOOSE binary commit 08315af82e (2026-11-13), PETSc3.26.0 differs from public case lock 07b49de938ed357c136b487078065406d838aa26 / documented PETSc3.25.4. The original public input, seed mesh and factor45 refinement are retained; matrix shape is checked exactly.',
        'The local original Pangu26.46 SDK package hash differs from the case documentation. Vendor binaries and license were neither patched nor replaced.',
        'The public repository does not supply the chart raw benchmark matrix, original hardware or full comparison configuration; this is a local rerun of the public model, not strict reproduction of the chart.',
-       'Native GPU CSC Pangu L1/L2 and L0/L2 versus GPU CSR NVIDIA cuDSS0.7.1 via calibrated mycudss-direct, all FP64 general LU. All host conversion, upload, RHS preparation and result checks excluded from phase timers. Analysis includes vendor CPU work and is separately listed.',
-       'Final default Pangu L0 and native cuDSS each have two plain runs and one CUPTI trace, using the original single-RHS workload and first factor. Expensive L1 is separately bounded; it is not mixed with successful default measurements.',
+       'Native GPU CSC PanguLU L1/L2 and L0/L2 versus GPU CSR NVIDIA cuDSS0.7.1 via calibrated mycudss-direct, all FP64 general LU. All host conversion, upload, RHS preparation and result checks excluded from phase timers. Analysis includes vendor CPU work and is separately listed.',
+       'Final default PanguLU L0 and native cuDSS each have two plain runs and one CUPTI trace, using the original single-RHS workload and first factor. Expensive L1 is separately bounded; it is not mixed with successful default measurements.',
        'GPU times are monotonic CUPTI activity-interval unions. Trace overhead may be substantial near full VRAM; plain wall results and traced GPU times are both shown. Whole-device sampled memory cannot establish paging or a per-solver exact memory peak.',
        'An earlier extra-eight-RHS GPU trace was intentionally stopped in numeric after about200s near full VRAM. Single-RHS L1 profiling also did not finish within300s and was bounded; no completed factor or GPU time is claimed for either. Two plain L1 replays and an independent original HOST adapter replay completed correctly, so the profiling waits are not normal solver time.',
        'Full MOOSE HOST L1 numeric80.7138s is a separate observation. The identical original HOST adapter, replayed standalone without MOOSE, numerically completed in about1.92s. This rules out the HOST API alone as a sufficient explanation; MOOSE environment/available VRAM/context or load remains unisolated. No proven paging cause is claimed.',
@@ -103,24 +103,26 @@ def main():
     lines=['Pinched cylinder / 圆柱薄壳纯矩阵复测','='*52,
        '矩阵1017005阶 / 45630025存储项 / FP64实数通用LU / 原始点载荷单RHS。',
        'RTX4080Laptop12GiB，原始Pangu26.46及原生NVIDIAcuDSS0.7.1，8个CPU线程。',
-       '先完成完整MOOSE模型的CPU MUMPS与Pangu物理场核对，再独立重放字节相同的矩阵和RHS。',
+       '先完成完整MOOSE模型的CPU MUMPS与PanguLU物理场核对，再独立重放字节相同的矩阵和RHS。',
        '转换/上传/校验在计时外；分析包含厂商CPU预处理，不称作纯GPU。',
-       '默认Pangu L0及cuDSS各2次无追踪取均值、1次GPU追踪；L1限制单独列出。首次分解之后首先求解原始物理载荷。','',
+       '默认PanguLU L0及cuDSS各2次无追踪取均值、1次GPU追踪；L1限制单独列出。首次分解之后首先求解原始物理载荷。','',
        '无追踪墙钟秒：后端 | 分析 | 首次数值分解 | 原载荷求解 | 核心合计 | 合计范围']
     for backend in ['pangu-L1','pangu-L0','mycudss']:
+        label=backend.replace('pangu-','PanguLU ') if backend.startswith('pangu-') else 'cuDSS'
         if backend not in stats or 'plain' not in stats[backend]:
-            lines.append(backend+' | GPU CSC无追踪未完成；不报成功时间');continue
-        d=stats[backend]['plain'];v=d['phases'];lines.append(f"{backend} | {v['analysis']['wall_seconds']:.6f} | {v['numeric']['wall_seconds']:.6f} | {v['physical_solve']['wall_seconds']:.6f} | {d['cold_core_mean_seconds']:.6f} | {d['cold_core_range_seconds']}")
+            lines.append(label+' | GPU CSC无追踪未完成；不报成功时间');continue
+        d=stats[backend]['plain'];v=d['phases'];lines.append(f"{label} | {v['analysis']['wall_seconds']:.6f} | {v['numeric']['wall_seconds']:.6f} | {v['physical_solve']['wall_seconds']:.6f} | {d['cold_core_mean_seconds']:.6f} | {d['cold_core_range_seconds']}")
     lines+=['','单次追踪GPU kernel秒：后端 | 分析 | 首次数值分解 | 原载荷求解 | 分解GPU活动覆盖率']
     for backend in ['pangu-L1','pangu-L0','mycudss']:
+        label=backend.replace('pangu-','PanguLU ') if backend.startswith('pangu-') else 'cuDSS'
         if backend not in stats or 'traced' not in stats[backend]:
-            lines.append(backend+' | GPU追踪未在300秒内完成；不报GPU成功时间');continue
-        v=stats[backend]['traced']['phases'];lines.append(f"{backend} | {v['analysis']['GPU_kernel_seconds']:.6f} | {v['numeric']['GPU_kernel_seconds']:.6f} | {v['physical_solve']['GPU_kernel_seconds']:.6f} | {v['numeric']['GPU_coverage']:.4%}")
-    lines+=['','cuDSS/Pangu时间比，>1表示Pangu更快：',json.dumps(ratios,indent=2),
+            lines.append(label+' | GPU追踪未在300秒内完成；不报GPU成功时间');continue
+        v=stats[backend]['traced']['phases'];lines.append(f"{label} | {v['analysis']['GPU_kernel_seconds']:.6f} | {v['numeric']['GPU_kernel_seconds']:.6f} | {v['physical_solve']['GPU_kernel_seconds']:.6f} | {v['numeric']['GPU_coverage']:.4%}")
+    lines+=['','cuDSS/PanguLU时间比，>1表示PanguLU更快：',json.dumps(ratios,indent=2),
        f"{len(checks)}组原系统数值检查全部通过；最大相对残差 {report['maximum_original_system_relative_residual']:.12g}",
        f"最大已知解相对误差 {report['maximum_known_solution_relative_error']:.12g}",
        f"原载荷解与MUMPS最大相对L2差 {report['maximum_physical_solution_relative_error_vs_MUMPS']:.12g}",
-       '小网格和百万阶完整五物理场/后处理量均与MUMPS比较通过。Pangu/MUMPS应用导出A/b字节相同。',
+       '小网格和百万阶完整五物理场/后处理量均与MUMPS比较通过。PanguLU/MUMPS应用导出A/b字节相同。',
        f"完成的{sum(x['traced'] for x in completed)}条主GPU追踪丢失0条；L1未完成尝试保留失败记录。",
        '完整MOOSE HOST CSC L1对照：分析3.43800748s，数值分解80.713801627s，原载荷求解0.034638447s，五物理场通过MUMPS核对；此时间不混入独立GPU CSC统计。',
        f"未修改原HOST适配器独立重放：阶段{host['native_phase_seconds']}，核心合计{host['native_core_seconds']:.6f}s，MUMPS解相对L2差{host['relative_l2_vs_MUMPS']:.12g}。HOST接口本身不足以解释完整应用80s观察。",

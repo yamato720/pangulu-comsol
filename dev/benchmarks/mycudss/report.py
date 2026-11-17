@@ -85,7 +85,7 @@ def main():
     lines+=['','验收：完整扫描6×236=1416项CPU参考通过；对原生保存结果直接比较5×236=1180项通过；固定回放108项已知解检查通过；实数/复数、重分解和零RHS六组smoke通过。',
             '32项测试、安装版构建与F8键盘操作、真实PTY退出检查通过。',
             '校准C++源码与v1_native_equivalent完全一致起步；仅移除硬编码安装路径，改用本模组配置及CUDA12.9构建。',
-            '正式Pangu组件、原SDK/许可、本机配置和原工程保持；测试组件位于runtime/tests/mycudss，源码位于忽略的dev/benchmarks/mycudss。',
+            '正式PanguLU组件、原SDK/许可、本机配置和原工程保持；测试组件位于runtime/tests/mycudss，源码位于忽略的dev/benchmarks/mycudss。',
             'COMSOL自行刷新两份偏好文件的时间注释；已通过原始哈希精确重构证明所有设置键值保持，模组未恢复或改写用户偏好文件。',
             '', '结果路径：',str(OUT/'suite.json'),str(OUT/'fixed/suite.json'),str(OUT/'native-comparison'),'', '限制：',*report['limitations']]
     (OUT/'report.txt').write_text('\n'.join(lines)+'\n')

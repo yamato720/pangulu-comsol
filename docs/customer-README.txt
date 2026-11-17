@@ -1,4 +1,4 @@
-Pangu–COMSOL 使用说明
+PanguLU–COMSOL 使用说明
 ====================
 
 入口
@@ -46,13 +46,13 @@ init 初始化本模块 config/runtime.json，已有配置保持原样。
   ./pangu-comsol run --backend cudss /path/to/model.mph
   ./pangu-comsol run --execution direct /path/to/model.mph
 
-Pangu 执行方式默认 worker；运行页和测试页可选择同进程 direct。
-两种方式共用 runtime/module/libpangu_backend.so，模型内仍选择同一个 Pangu Direct。
+PanguLU 执行方式默认 worker；运行页和测试页可选择同进程 direct。
+两种方式共用 runtime/module/libpangu_backend.so，模型内仍选择同一个 PanguLU Direct。
 direct 为本次启动省略 libjsig 预加载，以满足原始 SDK 的运行条件；原厂脚本、
 SDK 和许可保持，授权仍由原始 SDK 校验。私有启动脚本位于 runtime/launchers/。
 该启动条件与默认信号预加载不同，已验收范围见对应报告；worker 保留标准启动。
 
-在 Fully Coupled 等兼容节点的 Linear solver 中选择 Pangu。
+在 Fully Coupled 等兼容节点的 Linear solver 中选择 PanguLU。
 选项注册保留当前选择和已有解，不自动计算或保存。
 带模型路径启动时打开 data/runs/ 内的工作副本；GUI 内直接打开原文件后保存仍会写回原文件。
 

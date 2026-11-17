@@ -1,4 +1,4 @@
-"""Session-scoped startup for the Pangu in-process execution mode."""
+"""Session-scoped startup for the PanguLU in-process execution mode."""
 from pathlib import Path
 import tempfile
 from . import runtime as core
@@ -10,8 +10,8 @@ def direct_launcher():
     original=source.read_text()
     needle='setflldpreload ${JREROOT}/lib/libjsig.so'
     if original.count(needle)!=1:
-        raise ValueError('This COMSOL launcher is not recognized for direct Pangu startup; use worker execution')
-    text=original.replace(needle,': # Pangu direct session: omit libjsig preloading')
+        raise ValueError('This COMSOL launcher is not recognized for direct PanguLU startup; use worker execution')
+    text=original.replace(needle,': # PanguLU direct session: omit libjsig preloading')
     directory=core.ROOT/'runtime/launchers';directory.mkdir(parents=True,exist_ok=True)
     target=directory/'comsol-direct'
     if not target.is_file() or target.read_text()!=text:

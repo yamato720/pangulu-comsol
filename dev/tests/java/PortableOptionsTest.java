@@ -3,7 +3,7 @@ import com.comsol.model.util.ModelUtil;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
-/** Deliberately has no Pangu Java dependency: ordinary COMSOL must read it. */
+/** Deliberately has no PanguLU Java dependency: ordinary COMSOL must read it. */
 public final class PortableOptionsTest {
     private static void add(MessageDigest md,double[] values){ByteBuffer b=ByteBuffer.allocate(8192);for(double v:values){if(b.remaining()<8){md.update(b.array(),0,b.position());b.clear();}b.putLong(Double.doubleToRawLongBits(v));}md.update(b.array(),0,b.position());}
     private static String solutions(Model m)throws Exception{

@@ -6,7 +6,7 @@ int main(int argc,char **argv){
  if((argc!=4&&argc!=5)||(strcmp(argv[3],"local")&&strcmp(argv[3],"deep"))){fprintf(stderr,"foreign-openmp.so plugin.so local|deep [nested-component.so]\n");return 2;}
  void *foreign=dlopen(argv[1],RTLD_NOW|RTLD_GLOBAL);
  if(!foreign){fprintf(stderr,"foreign: %s\n",dlerror());return 2;}
- /* Both runtimes may already be mapped before the Pangu backend is opened. */
+ /* Both runtimes may already be mapped before the PanguLU backend is opened. */
  void *gnu=dlopen("libgomp.so.1",RTLD_NOW|RTLD_GLOBAL);
  if(!gnu){fprintf(stderr,"GNU: %s\n",dlerror());return 2;}
  bool deep=strcmp(argv[3],"deep")==0;

@@ -66,7 +66,7 @@ class Details(ModalScreen[None]):
 
 
 class PanguComsolApp(App[int]):
-    TITLE = "Pangu–COMSOL"
+    TITLE = "PanguLU–COMSOL"
     SUB_TITLE = "配置 · SDK 包 · 授权 · 运行"
     BINDINGS = [
         Binding("up", "navigate(-1)", "上移", show=False, priority=True),
@@ -142,7 +142,7 @@ class PanguComsolApp(App[int]):
                     yield Label("CUDA 目录（包含 lib64/）", classes="field-label")
                     yield Input(placeholder="runtime/cuda 或已安装的 CUDA 目录", id="cuda-path")
                     with Horizontal(classes="switch-row"):
-                        yield Label("在 GUI 中提供 Pangu 求解器选项")
+                        yield Label("在 GUI 中提供 PanguLU 求解器选项")
                         yield Switch(True, id="global-options")
                     yield Static("只修改本模块配置；COMSOL 的偏好、临时、恢复和工作区设置保持原有行为。", classes="helper")
                     with Horizontal(classes="actions"):
@@ -153,13 +153,13 @@ class PanguComsolApp(App[int]):
                     yield Label("模型文件（可留空）", classes="field-label")
                     yield Input(placeholder="/path/to/model.mph", id="model-path")
                     yield Label("求解后端", classes="field-label")
-                    yield Select([("Pangu", "pangu"), ("NVIDIA cuDSS", "cudss")], value="pangu", allow_blank=False, id="backend")
-                    yield Label("Pangu 执行方式",classes="field-label")
+                    yield Select([("PanguLU", "pangu"), ("NVIDIA cuDSS", "cudss")], value="pangu", allow_blank=False, id="backend")
+                    yield Label("PanguLU 执行方式",classes="field-label")
                     yield Select([("worker 独立进程","worker"),("直接封装，同进程","direct")],value="worker",allow_blank=False,id="execution")
                     yield Static("直接模式为本次启动取消 libjsig 预加载，使用同一份原始 SDK 与授权。",classes="helper")
                     yield Label("线程数（留空继承原有设置）", classes="field-label")
                     yield Input(placeholder="继承原有设置", id="threads")
-                    yield Static("COMSOL 会独立运行，启动提交后可继续使用菜单。带模型路径时打开工作副本；在 COMSOL 中选择 Pangu 后计算。", classes="helper")
+                    yield Static("COMSOL 会独立运行，启动提交后可继续使用菜单。带模型路径时打开工作副本；在 COMSOL 中选择 PanguLU 后计算。", classes="helper")
                     with Horizontal(classes="actions"):
                         yield ActionButton("启动 COMSOL", id="launch-gui", classes="operation-button")
             with TabPane("SDK 包", id="packages"):
@@ -193,13 +193,13 @@ class PanguComsolApp(App[int]):
                     yield Static("正在读取可选测试组件…",id="test-state",classes="card")
                     yield Label("测试后端",classes="field-label")
                     yield Select([(label,name) for name,label in testing.BACKENDS.items()],value="cudss",allow_blank=False,id="test-backend")
-                    yield Label("Pangu 执行方式",classes="field-label")
+                    yield Label("PanguLU 执行方式",classes="field-label")
                     yield Select([("worker 独立进程","worker"),("直接封装，同进程","direct")],value="worker",allow_blank=False,id="test-execution",disabled=True)
                     yield Label("GUI 模型文件（可留空）",classes="field-label")
                     yield Input(placeholder="/path/to/model.mph",id="test-model-path")
                     yield Label("线程数（GUI 留空继承，数值测试留空用 8）",classes="field-label")
                     yield Input(placeholder="继承原设置 / 数值测试 8",id="test-threads")
-                    yield Static("cuDSS 封装调用原生 NVIDIA 核心；Pangu 可选择执行方式。GUI 中选择对应 Direct 节点，模型路径打开工作副本。",classes="helper")
+                    yield Static("cuDSS 封装调用原生 NVIDIA 核心；PanguLU 可选择执行方式。GUI 中选择对应 Direct 节点，模型路径打开工作副本。",classes="helper")
                     with Horizontal(classes="actions"):
                         yield ActionButton("启动测试 GUI",id="launch-test",classes="operation-button")
                         yield ActionButton("构建 cuDSS 校准组件",id="build-tests",classes="operation-button")
@@ -319,16 +319,16 @@ class PanguComsolApp(App[int]):
         sdk_label = sdk.get("version", "未安装")
         module_label = package["module_version"] or "未提供 / 未构建"
         selected = sum(item["selected"] for item in licences)
-        overview = (f"Pangu–COMSOL {__version__}\n"
+        overview = (f"PanguLU–COMSOL {__version__}\n"
                     f"配置：{'已初始化' if state['configured'] else '尚未初始化'}\n"
                     f"COMSOL：{settings.get('comsol_root') or '自动查找'}\n"
                     f"SDK：{sdk_label}    运行组件：{module_label}\n"
                     f"许可：{selected} / {len(licences)} 份已选")
         self.query_one("#overview-state", Static).update(Text(overview))
-        sdk_text = f"Pangu SDK：{sdk_label}\n{sdk.get('path', sdk.get('message', ''))}\n运行组件：{module_label}"
+        sdk_text = f"PanguLU SDK：{sdk_label}\n{sdk.get('path', sdk.get('message', ''))}\n运行组件：{module_label}"
         self.query_one("#sdk-state", Static).update(Text(sdk_text))
         tests=state["tests"]
-        self.query_one("#test-state",Static).update(Text("cuDSS 校准组件："+tests["directory"]+"\nPangu 运行组件："+tests['pangu_directory']+"\n"+"\n".join(
+        self.query_one("#test-state",Static).update(Text("cuDSS 校准组件："+tests["directory"]+"\nPanguLU 运行组件："+tests['pangu_directory']+"\n"+"\n".join(
             item["label"]+"："+("可用" if item["available"] else "未就绪") for item in tests["backends"])))
         choices = self.query_one("#licence-list", SelectionList)
         choices.clear_options()

@@ -17,10 +17,10 @@
 -------------------
   Linux x86_64（原生Linux或WSL），NVIDIA GPU及正常的CUDA驱动。
   Python3.10以上、g++（支持C++17）。矩阵复跑只用Python标准库。
-  原厂Pangu SDK：解压后有 include/pangulu.h、lib/libpangulu.so，ABI必须为2。
+  原厂PanguLU SDK：解压后有 include/pangulu.h、lib/libpangulu.so，ABI必须为2。
   CUDA12.9开发环境：include/及lib64/（或lib/）中有runtime、cuBLAS。
   NVIDIA cuDSS0.7.1：原始共享库及同版本官方头文件。
-  目标设备对应的原始Pangu许可证；新GPU通常需要它自己的许可证。
+  目标设备对应的原始PanguLU许可证；新GPU通常需要它自己的许可证。
   可选：CUDA12.9 CUPTI开发组件，用于GPU kernel活动追踪。
 
 SDK、CUDA/cuDSS原厂文件、设备许可证和本机编译产物不放进这两个包。
@@ -28,7 +28,7 @@ SDK、CUDA/cuDSS原厂文件、设备许可证和本机编译产物不放进这�
 若目标机器有COMSOL6.4，可使用它安装目录ext/cudss/glnxa64下的0.7.1共享库；
 头文件仍需来自匹配的cuDSS开发包，或你已有的合法安装。
 
-本实验是单GPU测试。Pangu使用“授权GPU列表索引0”，原生cuDSS使用CUDA逻辑设备0。
+本实验是单GPU测试。PanguLU使用“授权GPU列表索引0”，原生cuDSS使用CUDA逻辑设备0。
 请使两者指向同一张卡；运行结果记录实际CUDA设备UUID，不同UUID会使比较失败。
 集群分配了CUDA_VISIBLE_DEVICES时保留它；程序不会修改GPU身份、驱动或系统设置。
 
@@ -71,7 +71,7 @@ configure只写本包config.local.json；build只写本包build/。
   python3 replay.py run --case million --repeat 2 --label million-compare
 
 默认依次比较：
-  pangu-L0：原始Pangu SDK，GPU CSC，L0排序/L2复用。
+  pangu-L0：原始PanguLU SDK，GPU CSC，L0排序/L2复用。
   mycudss：已有校准的直接转发封装，最终调用你配置的原始NVIDIA cuDSS。
 
 原案例的L1配置可单独选择：
@@ -120,7 +120,7 @@ GPU追踪有测量开销；不要把追踪墙钟与无追踪墙钟混着平均�
   physical_rhs.bin：原始点载荷，little-endian float64，n项。
   application_linear_solution.bin：原始CPU MUMPS参考线性解，float64，n项。
 
-两边使用同一矩阵、同一原始载荷；Pangu用CSC、cuDSS用等价CSR。
+两边使用同一矩阵、同一原始载荷；PanguLU用CSC、cuDSS用等价CSR。
 GPU上传、格式转换、制造已知解RHS、结果下载和独立校验均在阶段计时之外。
 分析阶段包含厂商自己的CPU排序/预处理；GPU kernel时间单独报告。
 核心合计=分析+首次数值分解+首次原始物理载荷单RHS求解。
@@ -146,7 +146,7 @@ GPU追踪还要求完整结束且丢失0条。退出码0或产生文件本身不
 
 原MOOSE完整应用曾有一次80.7秒的分解观察；同一未修改HOST封装独立重放约1.92秒。
 应用环境或显存/上下文/负载影响尚未完全隔离；该观察没有混入正常纯矩阵均值。
-本机MOOSE/PETSc和Pangu SDK原包哈希与案例文档不同；不宣称严格复现原图数值。
+本机MOOSE/PETSc和PanguLU SDK原包哈希与案例文档不同；不宣称严格复现原图数值。
 性能不设预期速度门槛；换GPU、SDK版本、驱动后，记录实测结果即可。
 
 原案例来源：

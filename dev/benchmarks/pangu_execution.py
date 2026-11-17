@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Isolated acceptance for the shared worker/direct Pangu backend."""
+"""Isolated acceptance for the shared worker/direct PanguLU backend."""
 import argparse
 import importlib.util
 import json

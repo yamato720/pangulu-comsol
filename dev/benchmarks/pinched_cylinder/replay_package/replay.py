@@ -92,7 +92,7 @@ def configure(args):
     text = header.read_text()
     abi = re.search(r'PANGULU_ABI_VERSION\s+(\d+)', text)
     if not abi or int(abi[1]) != 2:
-        raise ValueError('This harness requires Pangu public ABI 2')
+        raise ValueError('This harness requires PanguLU public ABI 2')
     version = re.search(r'PANGULU_VERSION_STRING\s+"([^"]+)"', text)
     value['sdk_version'] = version[1] if version else 'unknown'
     value['sdk_abi'] = int(abi[1])
@@ -270,7 +270,7 @@ def trial(c, dataset, case, backend_name, traced, folder, timeout):
         mapped |= inventory
         if backend == 'pangu':
             if str((Path(c['sdk']) / 'lib/libpangulu.so').resolve()) not in mapped or any('libcudss' in Path(x).name for x in mapped):
-                raise ValueError('Unexpected or missing Pangu library mapping')
+                raise ValueError('Unexpected or missing PanguLU library mapping')
         else:
             if c['cudss_library'] not in mapped or any('libpangulu' in Path(x).name for x in mapped):
                 raise ValueError('Unexpected or missing original NVIDIA cuDSS library mapping')
@@ -341,7 +341,8 @@ def summarize(output):
         for key, group in value['groups'].items():
             m = group['mean']
             writer.writerow([key, group['processes'], m['analysis_s'], m['numeric_s'], m['physical_solve_s'], m['core_s'], m.get('numeric_GPU_kernel_s')])
-            lines.append(f"{key} | {group['processes']} | {m['analysis_s']:.6f} | {m['numeric_s']:.6f} | {m['physical_solve_s']:.6f} | {m['core_s']:.6f} | {m.get('numeric_GPU_kernel_s', 'untraced')}")
+            label = key.replace('pangu-', 'PanguLU ')
+            lines.append(f"{label} | {group['processes']} | {m['analysis_s']:.6f} | {m['numeric_s']:.6f} | {m['physical_solve_s']:.6f} | {m['core_s']:.6f} | {m.get('numeric_GPU_kernel_s', 'untraced')}")
     lines += ['status: ' + value['status'], 'failed trials: ' + str(len(value['failed']))]
     (output / 'summary.txt').write_text('\n'.join(lines) + '\n')
     print('\n'.join(lines), flush=True)
@@ -417,7 +418,7 @@ def host_control(args):
         expected = str((Path(c['sdk']) / 'lib/libpangulu.so').resolve())
         mappings = {str(Path(line.removeprefix('LOADED ')).resolve()) for line in text.splitlines() if line.startswith('LOADED ')}
         if expected not in mappings:
-            raise ValueError('Missing expected original Pangu library mapping')
+            raise ValueError('Missing expected original PanguLU library mapping')
         value.update(status='completed', relative_l2_vs_MUMPS=float(marker[1]),
                      native_phase_seconds={k: float(v) for k, v in re.findall(r'MOOSE_PANGULU_NATIVE phase=(\S+) seconds=(\S+) status=0', text)})
     except (OSError, ValueError, subprocess.SubprocessError) as error:

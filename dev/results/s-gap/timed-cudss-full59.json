@@ -1,0 +1,41 @@
+{
+  "label": "timed-cudss-full59",
+  "backend": "cudss",
+  "runAll_seconds": 164.288945152,
+  "process_wall_seconds": 203.9293028950051,
+  "fields_passed": 236,
+  "callbacks": 295,
+  "execute_API_wall_seconds": 60.822134081,
+  "API_phase_wall": {
+    "1": {
+      "calls": 59,
+      "wall_seconds": 48.438382627
+    },
+    "2": {
+      "calls": 59,
+      "wall_seconds": 11.181930294999997
+    },
+    "4": {
+      "calls": 59,
+      "wall_seconds": 1.1578236789999996
+    },
+    "1008": {
+      "calls": 118,
+      "wall_seconds": 0.04399748000000002
+    }
+  },
+  "wall_outside_execute_API_seconds": 103.466811071,
+  "unobserved_prefix_seconds": 164.288945152,
+  "GPU": null,
+  "observed_no_GPU_wall_seconds": null,
+  "trace_summaries": [],
+  "bridge_summary": [],
+  "backend_summary": [],
+  "traced": false,
+  "method": "Observer starts at normal backend DLL load. Prefix before its clock is unobserved, not classified as CPU or GPU idle. GPU intervals overlap host API windows. Native wrapper adds no synchronization.",
+  "GPU_intervals_after_runAll_end": null,
+  "kernel_by_launch_API_phase_seconds": null,
+  "unattributed_kernel_union_seconds": null,
+  "top_kernel_cumulative_seconds_may_overlap": [],
+  "initialization_seconds": 0.015138143
+}

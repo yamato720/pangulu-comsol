@@ -43,7 +43,7 @@ def build():
     runner.write(OUT/'benchmark-provenance.json',{'sdk':runner.core.sdk_info(),'native_cudss':str(runner.testing.native_library()),
          'native_cudss_sha256':runner.core.sha(runner.testing.native_library()),'mycudss':runner.testing.verify(),
          'harness_sha256':{p.name:runner.core.sha(p) for p in archive.iterdir()},'binary_sha256':{p.name:runner.core.sha(p) for p in binary.iterdir()},
-         'method':'Original full shell Jacobian, explicit zeros retained, real general LU. GPU CSC Pangu L1/L2 versus GPU CSR NVIDIA cuDSS through calibrated mycudss-direct. Host conversion/upload outside timers. Analysis separately timed. Physical RHS checked against original system; manufactured RHS checked against known solutions. This is not whole MOOSE/COMSOL application time.'})
+         'method':'Original full shell Jacobian, explicit zeros retained, real general LU. GPU CSC PanguLU L1/L2 versus GPU CSR NVIDIA cuDSS through calibrated mycudss-direct. Host conversion/upload outside timers. Analysis separately timed. Physical RHS checked against original system; manufactured RHS checked against known solutions. This is not whole MOOSE/COMSOL application time.'})
     print('BUILT',OUT,flush=True)
 
 if __name__=='__main__':

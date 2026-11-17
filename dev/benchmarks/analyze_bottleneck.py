@@ -42,7 +42,7 @@ def analyze(label, host_only=False):
     release=sum(x.get('release_seconds',0) for x in groups['PC_WORKER'])
     disjoint=[]
     if spans:
-        for phase,name in [('1027','Pangu analysis'),('4','Pangu numeric factorization'),('8','Pangu refactorization'),('1008','Pangu solve')]:
+        for phase,name in [('1027','PanguLU analysis'),('4','PanguLU numeric factorization'),('8','PanguLU refactorization'),('1008','PanguLU solve')]:
             disjoint.append({'stage':name,'seconds':worker_phases[phase]['seconds']})
         disjoint.extend([{'stage':'Worker format/index/value processing (measured)','seconds':cpu_format},
                          {'stage':'Worker backend resource release','seconds':release},

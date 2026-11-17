@@ -1,0 +1,50 @@
+S 端到端差距定位：完成
+======================================================
+结论：固定矩阵优势主要来自复用策略；真实扫频失去该优势，而PanguLU数值分解GPU阶段在本S算例上明显更慢。
+不是启动/保存把一个已证明更快的分解器拖慢；固定回放的原始接口序列混入了重复分析开销。
+本机RTX4080Laptop /300475阶 /8线程 /FP64 /原始SDK26.46 /cuDSS0.7.1。
+
+1. 关闭GPU追踪的完整59点复核（保留轻量阶段时钟）：
+PanguLU 209.439946s；cuDSS 164.288945s；差45.151001s。
+前次生产计时PanguLU194.558s、cuDSS160.549s。诊断计时另列，不替换历史数值；差异包含装配/运行波动及诊断影响。
+
+2. 真实59点GPU kernel累计时间（一次CUPTI追踪；GPU区间并集）：
+阶段 | PanguLU秒 | cuDSS秒 | PanguLU多用秒
+分析/重排/符号 | 4.311896 | 10.788929 | -6.477033
+数值分解 | 57.368512 | 20.571226 | +36.797286
+回代 | 1.925976 | 0.952352 | +0.973624
+数值分解GPU时间比2.789倍；这定位了数值内核阶段，不等于已证明算力或带宽不足。
+cuDSS的GPU数值任务大量在API返回后完成；其主机API耗时不能当成GPU时间。
+关闭GPU追踪时，PanguLU Execute内扣除SDK阶段的其余时间仅0.619013s（矩阵校验/快照、复制等嵌套其中）。
+其中矩阵校验/更新合计0.433051s；额外完成同步合计0.013752s。
+不能把这些嵌套时间再加到GPU或API总时间上。
+
+3. 控制实验：同一S图，系数1.00/1.01交替，6次分解、12RHS，各3独立进程；下表为初始化+回调均值：
+调用协议 | PanguLU秒 | cuDSS秒
+每轮请求分析+分解 | 7.049422 | 8.647319
+一次分析+后续重分解 | 6.977836 | 3.342328
+PanguLU在两种协议下均实际执行1次分析、1次数值分解、5次重分解；原生cuDSS遵循调用者请求。
+cuDSS仅改合法调用策略就减少61.3%时间，PanguLU本来已有缓存，所以变化很小。
+原固定回放用于比较相同API请求和适配缓存，没有测两边都正确使用稳定图复用时的核心性能。
+真实S扫频的存储CSR图变化58次；PanguLU与cuDSS均做59次分析和59次首次分解，PanguLU为0次重分解。
+因此固定图条件下的分析复用优势不能直接外推到本次实际扫频。
+
+4. 后续重点：GPU数值分解及其填充/调度策略；再检查相邻频点CSR差异是否由零项裁剪/浮点装配造成，验证稳定图方案。
+不能仅凭n/nnz相同就跳过分析，也不能强行把变化图当作可直接重分解。
+
+验收：952项频点字段检查、144项控制解/残差检查通过；追踪丢失0条。
+SDK/许可、原模型、配置、COMSOL偏好及生产组件保持；所有诊断在本目录。
+
+限制：
+- This measures the local300475-order S case on RTX4080Laptop at8threads. It does not explain the other1036043-order benchmark without its matrices and phase logs.
+- Each full-sweep diagnostic configuration has one process. The captured-S controlled experiment has3 independent processes per backend/policy. No statistical confidence interval is claimed.
+- Repeated COMSOL assembly can change stored numerical-zero patterns slightly. Full-sweep inputs and physical solutions are verified, but the two solver runs are not a byte-identical59-matrix stream. The controlled replay uses identical input bytes and scaled coefficients across backends/policies.
+- The control alternates A0 and1.01*A0 with exact graph held constant; generated RHS follows each matrix and preserves a known solution. Changing caller phase schedule is the tested intervention. It is not the full physical sweep.
+- CUPTI increases wall time, especially host/API work. GPU trace values are separate from timing-only results and are not subtracted from the earlier production gap to claim an exact causal percentage.
+- Native cuDSS Execute returns asynchronously; PanguLU SDK calls in this case mostly return after completion. Do not compare their host numeric API durations as GPU duration. Kernel-to-phase classification uses recorded CUDA launch API correlation IDs; all measured kernels were attributed.
+- The observer starts when the backend DSO is loaded. The first approximately4seconds of runAll are unobserved, not assumed to be CPU-only or GPU-idle. That prefix is explicitly reported.
+- Stored CSR graph change is established; a change in physical/nonzero connectivity is not. Whether differences arise from zero pruning or floating-point assembly needs adjacent-frequency matrix capture before any graph-normalization optimization.
+- Kernel activity identifies where time went, not FLOP count, sparse-fill count, bandwidth saturation or FP64 hardware occupancy. Those would need SDK/hardware-counter investigation.
+- No production source, numerical policy, SDK binary, license, original model or production component was changed by this investigation. No worker/IPC path is involved in the successful direct comparisons.
+
+/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403

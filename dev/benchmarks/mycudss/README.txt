@@ -17,7 +17,7 @@
 GUI 测试页为 F8，可选后端、启动 GUI 或运行 S 档 Study3 数值验收。
 组件独立放 runtime/tests/mycudss/，使用配置中的 COMSOL 与 CUDA 路径。
 S 验收使用输入模型中的 CFD/Mapping 已有解，结果写入新的 data/runs/test_* 目录。
-原始模型和正式 Pangu 组件不覆盖；每次记录实际库与worker映射、有限性、频点和四场CPU参考比较。
+原始模型和正式 PanguLU 组件不覆盖；每次记录实际库与worker映射、有限性、频点和四场CPU参考比较。
 worker 覆盖单 GPU、一般full CSR、FP64实/复数与单RHS；取消在阶段之间生效。
 
 本地 suite.py 按原生/直接/worker/worker/直接/原生运行两轮全59频点，再直接比较原生保存结果。

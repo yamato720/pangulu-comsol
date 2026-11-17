@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Balanced public CLI comparison for Pangu worker/direct execution."""
+"""Balanced public CLI comparison for PanguLU worker/direct execution."""
 import datetime
 import hashlib
 import json

@@ -7,7 +7,7 @@
  * matrix receive exactly zero in a stored structural position. Indices must be
  * sorted and unique within each column. Reuse uses exact subset checks.
  *
- * Lifecycle: an expanded pattern is newly allocated. Destroy the old Pangu
+ * Lifecycle: an expanded pattern is newly allocated. Destroy the old PanguLU
  * descriptor/handle BEFORE freeing its old caller-owned arrays. When a pattern
  * is unchanged, ptr/idx below borrow the existing arrays and own_arrays=0.
  */

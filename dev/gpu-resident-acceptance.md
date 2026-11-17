@@ -30,7 +30,7 @@ g++ -O2 -std=c++17 dev/tests/openmp_scope_test.cpp -ldl -o /tmp/pangu-openmp-sco
 /tmp/pangu-openmp-scope /path/to/multiphysics/lib/glnxa64/libiomp5.so /tmp/pangu-openmp-task.so deep
 ```
 
-在发生过故障的 COMSOL 6.4 运行库上，`local` 对照会打印 Intel provider、`copies=0 bodies=1 failures=1` 并返回 1；`deep` 必须绑定 GNU provider、`copies=1 bodies=1 failures=0` 并返回 0。该实验不加载 Pangu 或 CUDA；最终还需真实大模型的 direct 数值、完整频点和许可拒绝验收。
+在发生过故障的 COMSOL 6.4 运行库上，`local` 对照会打印 Intel provider、`copies=0 bodies=1 failures=1` 并返回 1；`deep` 必须绑定 GNU provider、`copies=1 bodies=1 failures=0` 并返回 0。该实验不加载 PanguLU 或 CUDA；最终还需真实大模型的 direct 数值、完整频点和许可拒绝验收。
 
 还须测试嵌套晚加载：单独给外层设置 DEEPBIND 并不足够。把任务插件作为外层的显式依赖后，再晚加载它才会沿用正确的 GNU 绑定：
 
@@ -71,7 +71,7 @@ g++ -O2 -std=c++17 -shared -fPIC -fopenmp dev/tests/openmp_nested_loader.cpp -ld
 
 ## 性能边界
 
-在同一 GPU 分配、相同软件线程数下，以原样矩阵/RHS/参考解对比 native Pangu GPU CSC/CSR32、正式 direct、正式 worker 和原生 cuDSS。首次 core 包含 analysis、numeric 和相同的 solve；steady factor 使用相同 L2 原地值更新。每项至少三个独立进程，分别保存每阶段与总 wall time。
+在同一 GPU 分配、相同软件线程数下，以原样矩阵/RHS/参考解对比 native PanguLU GPU CSC/CSR32、正式 direct、正式 worker 和原生 cuDSS。首次 core 包含 analysis、numeric 和相同的 solve；steady factor 使用相同 L2 原地值更新。每项至少三个独立进程，分别保存每阶段与总 wall time。
 
 调用者构造/上传、组件加载、冷启动和首次准备分别报告。不能把本实现新增的快照、校验、IPC 打开或 dense 复制从 `cudssExecute` 边界剔除。profile 中 GPU 矩阵阶段报告融合的 `validation_and_update_seconds`、四字节状态回读，以及严格结构是否匹配；没有测量的新位置数量不报告。
 

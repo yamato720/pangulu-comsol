@@ -1,0 +1,106 @@
+{
+  "label": "traced-cudss-full59-r1",
+  "backend": "cudss",
+  "runAll_seconds": 180.01034185,
+  "process_wall_seconds": 225.70523120599682,
+  "fields_passed": 236,
+  "callbacks": 295,
+  "execute_API_wall_seconds": 60.473452135,
+  "API_phase_wall": {
+    "1": {
+      "calls": 59,
+      "wall_seconds": 48.359771791
+    },
+    "2": {
+      "calls": 59,
+      "wall_seconds": 10.607485687999999
+    },
+    "4": {
+      "calls": 59,
+      "wall_seconds": 1.4497920929999997
+    },
+    "1008": {
+      "calls": 118,
+      "wall_seconds": 0.056402563000000024
+    }
+  },
+  "wall_outside_execute_API_seconds": 119.536889715,
+  "unobserved_prefix_seconds": 4.129521400000001,
+  "GPU": {
+    "memcpy_union_seconds": 4.469573228000001,
+    "memset_union_seconds": 0.218348813,
+    "kernel_union_seconds": 32.312507278000005,
+    "active_union_seconds": 37.000429319000006
+  },
+  "observed_no_GPU_wall_seconds": 138.880391131,
+  "trace_summaries": [
+    {
+      "path": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/traced-cudss-full59-r1/activities-296346.jsonl",
+      "type": "summary",
+      "records": 90597,
+      "dropped": 0
+    }
+  ],
+  "bridge_summary": [],
+  "backend_summary": [],
+  "method": "Observer starts at normal backend DLL load. Prefix before its clock is unobserved, not classified as CPU or GPU idle. GPU intervals overlap host API windows. Native wrapper adds no synchronization.",
+  "GPU_intervals_after_runAll_end": 0,
+  "kernel_by_launch_API_phase_seconds": {
+    "1": 1.594873036,
+    "2": 9.194055616,
+    "4": 20.571226342000003,
+    "1008": 0.952352284
+  },
+  "unattributed_kernel_union_seconds": 0.0,
+  "top_kernel_cumulative_seconds_may_overlap": [
+    [
+      "_ZN5cudss16factorize_v3_kerIl7double2idLi128ELi8ELi0ELi0ELi0ELi1ELi1ELi16ELi32ELi0EEEviijT1_S2_PT0_S4_PKT_PKS2_S9_PiS9_S7_S7_S7_PS2_S9_SB_S2_S2_S2_S2_SB_SB_SA_T2_PSC_SB_iS5_S5_S9_S7_S5_S7_S5_S9_iSA_",
+      15.401381159000003
+    ],
+    [
+      "_ZN5cudss15nnz_per_col_kerIliLi128ELi0EEEvT0_PKT_PKS1_S6_S6_PS1_S7_S7_S7_S1_S1_S1_iii",
+      4.802555973
+    ],
+    [
+      "_ZN5cudss13factorize_kerIl7double2idLi32ELi0ELi0ELi0ELi1ELi0ELi16ELi32ELi0EEEvijT1_S2_PT0_S4_PKT_PKS2_S9_PiS9_S7_S7_S7_S9_PS2_S2_S2_S2_S2_SB_SB_T2_PSC_SB_iS5_S5_S9_S7_S7_S5_S5_S9_iSA_",
+      2.990320506000001
+    ],
+    [
+      "_ZN5cudss21superpanel_update_kerIl7double2idLi256ELi0ELi0ELi0ELi0EEEvT1_S2_PT0_S4_PKS2_S6_PiS6_PKT_SA_SA_SA_SA_PS2_SB_S2_S2_S2_S2_S2_S4_S4_S6_SA_SA_S6_iiS4_S4_ijS8_S8_",
+      1.5766793830000003
+    ],
+    [
+      "_ZN5cudss7map_kerIliiLi256ELi0ELi0EEEvT0_PKT1_S4_iPKT_PKS1_S9_S9_S9_S9_S7_S7_S7_S9_S9_S9_PS2_SA_S4_S1_SA_SA_PS5_SB_S1_S1_ii",
+      1.3333543830000003
+    ],
+    [
+      "_ZN5cudss14radix_sort_kerIlidLi1ELi20ELi4ELi0EEEvT0_PKT_PS1_S5_PT1_S7_S1_S1_",
+      0.7948028
+    ],
+    [
+      "_ZN5cudss14radix_sort_kerIiidLi1ELi20ELi4ELi0EEEvT0_PKT_PS1_S5_PT1_S7_S1_S1_",
+      0.5548404819999998
+    ],
+    [
+      "_ZN5cudss7bwd_kerIl7double2iLi32ELi32ELi16ELi2ELi16ELi1ELi0ELi1ELi0EEEvijPKT1_PiS2_S4_S4_S2_PT0_S7_S4_PKT_SA_SA_S4_S7_SA_S4_SA_S4_S4_S2_S2_S2_S2_S2_iiS2_S2_S2_S4_PS2_S7_S4_SA_SA_S7_S7_SB_PS8_S4_S8_S8_S2_iSC_SC_i",
+      0.5289473250000003
+    ],
+    [
+      "_ZN5cudss15nnz_per_col_kerIliLi128ELi1EEEvT0_PKT_PKS1_S6_S6_PS1_S7_S7_S7_S1_S1_S1_iii",
+      0.5173861810000001
+    ],
+    [
+      "_ZN5cudss21define_superpanel_kerIliLi256EEEvT0_S1_S1_PKT_PKS1_S6_S1_PS1_PS2_S7_S8_S1_S1_S1_diiiS1_S2_S1_",
+      0.4610267100000001
+    ],
+    [
+      "_ZN5cudss6kernelINS_13getrf_params_I7double2Li1ELi128ELi3ELi32ELi32ELi34ELi16ELi1ELi1EEEEEviiPviS4_iiiiiPiiS4_S4_S4_S4_N6cuTypeINT_9data_typeEE8pod_typeEPKSA_iS5_",
+      0.43083599
+    ],
+    [
+      "_Z15offsets_par_kerIliiLi128ELi1EEvT_PS0_PT0_PT1_Pii",
+      0.4291306260000001
+    ]
+  ],
+  "initialization_seconds": 0.019561569
+}

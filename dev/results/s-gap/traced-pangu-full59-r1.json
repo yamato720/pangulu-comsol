@@ -1,0 +1,198 @@
+{
+  "label": "traced-pangu-full59-r1",
+  "backend": "pangu",
+  "runAll_seconds": 232.176796273,
+  "process_wall_seconds": 284.1639841260039,
+  "fields_passed": 236,
+  "callbacks": 295,
+  "execute_API_wall_seconds": 127.822918861,
+  "API_phase_wall": {
+    "1": {
+      "calls": 59,
+      "wall_seconds": 0.0031335960000000015
+    },
+    "2": {
+      "calls": 59,
+      "wall_seconds": 65.50238861300001
+    },
+    "4": {
+      "calls": 59,
+      "wall_seconds": 60.01946224200002
+    },
+    "1008": {
+      "calls": 118,
+      "wall_seconds": 2.2979344100000008
+    }
+  },
+  "wall_outside_execute_API_seconds": 104.353877412,
+  "unobserved_prefix_seconds": 4.584187537,
+  "GPU": {
+    "memcpy_union_seconds": 5.060470808000001,
+    "memset_union_seconds": 0.076925163,
+    "kernel_union_seconds": 63.60638411,
+    "active_union_seconds": 68.74378008100001
+  },
+  "observed_no_GPU_wall_seconds": 158.848828655,
+  "trace_summaries": [
+    {
+      "path": "/home/lwf/comsol-projects/pangulu-comsol/data/runs/s_gap_20261117T124403/traced-pangu-full59-r1/activities-297589.jsonl",
+      "type": "summary",
+      "records": 2850604,
+      "dropped": 0
+    }
+  ],
+  "bridge_summary": [
+    {
+      "pid": 297589,
+      "data_id": 1,
+      "execution": "direct",
+      "analysis_requests": 59,
+      "numeric_requests": 59,
+      "solve_requests": 118,
+      "worker_starts": 0,
+      "device_validations": 118,
+      "host_full_stages": 0,
+      "structure_epochs_created": 59,
+      "device_value_epochs_created": 59,
+      "matrix_allocations": 1,
+      "dense_allocations": 1,
+      "status_allocations": 1,
+      "device_frees": 3,
+      "bridge_device_bytes_live": 0,
+      "bridge_device_bytes_peak": 363957628,
+      "cleanup_errors": 0,
+      "matrix_reserve_oom_fallbacks": 0,
+      "confirmed_device_pattern_changes": 58,
+      "n_min": 300475,
+      "n_max": 300475,
+      "nnz_min": 15688454,
+      "nnz_max": 15688736
+    }
+  ],
+  "backend_summary": [
+    {
+      "pid": 297589,
+      "client_pid": 297589,
+      "data_id": 1,
+      "handle_create_calls": 1,
+      "handles_created": 1,
+      "handle_destroy_calls": 1,
+      "analysis_calls": 59,
+      "handle_reanalyses": 58,
+      "numeric_calls": 59,
+      "refactor_calls": 0,
+      "solve_calls": 118,
+      "phase_failures": 0,
+      "vector_create_calls": 2,
+      "vector_destroy_calls": 2,
+      "device_allocations": 0,
+      "device_frees": 0,
+      "backend_buffer_bytes_live": 0,
+      "backend_buffer_bytes_peak": 0,
+      "matrix_ipc_opens": 0,
+      "matrix_ipc_closes": 0,
+      "dense_ipc_opens": 0,
+      "dense_ipc_closes": 0,
+      "cleanup_errors": 0
+    }
+  ],
+  "method": "Observer starts at normal backend DLL load. Prefix before its clock is unobserved, not classified as CPU or GPU idle. GPU intervals overlap host API windows. Native wrapper adds no synchronization.",
+  "GPU_intervals_after_runAll_end": 0,
+  "kernel_by_launch_API_phase_seconds": {
+    "2": 4.311895973,
+    "4": 57.36851226900001,
+    "1008": 1.925975868
+  },
+  "unattributed_kernel_union_seconds": 0.0,
+  "top_kernel_cumulative_seconds_may_overlap": [
+    [
+      "_ZN18cn_complex64_7043119cn_2f28d1e339265f09EPKNS_19cn_ed65f81a2877ce22EPKNS_4TileEiiPKiPKNS_19cn_6bb0134afc2bace1E",
+      19.84891925500003
+    ],
+    [
+      "_ZN7cutlass7Kernel2I49cutlass_80_tensorop_z884gemm_32x32_16x4_nn_align1EEvNT_6ParamsE",
+      9.53342478900002
+    ],
+    [
+      "_ZN7cutlass7Kernel2I49cutlass_80_tensorop_z884gemm_32x16_16x3_nn_align1EEvNT_6ParamsE",
+      6.342341652000088
+    ],
+    [
+      "_ZN18cn_complex64_7043119cn_df72d3eebd1c2b70EPKNS_19cn_ed65f81a2877ce22EPKiiPi",
+      5.998022693999975
+    ],
+    [
+      "_ZN18cn_complex64_7043119cn_f71d654e4cec0934EPKNS_19cn_ed65f81a2877ce22EPKNS_19cn_a87efdeff0858fd8EiPKi",
+      5.13785029000001
+    ],
+    [
+      "_ZN18cn_complex64_7043119cn_c524fdc4fb6bf3dbEPKNS_19cn_ed65f81a2877ce22EPKNS_19cn_a87efdeff0858fd8EiPKi",
+      4.080468384000004
+    ],
+    [
+      "_ZN7cutlass7Kernel2I49cutlass_80_tensorop_z884gemm_16x32_16x3_nn_align1EEvNT_6ParamsE",
+      3.2192873490000005
+    ],
+    [
+      "_Z10cn_k_00124iPKiS0_S0_S0_S0_iPiS0_",
+      1.527163515000149
+    ],
+    [
+      "_ZN18cn_complex64_7043112cn_c64_71406EPKNS_19cn_ed65f81a2877ce22EPKNS_19cn_8053321281f5d162EPKiPKNS_19cn_647596254e17601bEii",
+      1.3850997110000014
+    ],
+    [
+      "_ZN3cub70CUB_200802_SM_700_720_750_800_860_870_890_900_1000_1010_1030_1200_121029DeviceRadixSortOnesweepKernelINS0_6detail5radix10policy_hubImmjE10Policy1000ELb0EmmjiiNS2_21identity_decomposer_tEEEvPT5_S9_PT3_PKSA_PT1_PKSE_PT2_PKSI_T4_iiT6_",
+      0.7059956829999999
+    ],
+    [
+      "_ZN18cn_complex64_7043119cn_08821056813695c8EPKNS_19cn_ed65f81a2877ce22EPKNS_19cn_8e2928f366438cb0EiP8cn_c64_ZPKS6_",
+      0.6825917880000019
+    ],
+    [
+      "_Z12zgemm_largekILb0ELb0ELb0ELb0ELi4ELi3ELi4ELi3ELi3ELi16EEvP7double2PKS0_S3_iiiiiiS3_S3_S0_S0_iiPiS4_",
+      0.6377972450000005
+    ]
+  ],
+  "SDK_phase_wall_and_GPU": {
+    "1027": {
+      "calls": 59,
+      "wall_seconds": 65.332352779,
+      "GPU_active_seconds": 6.816519507000001,
+      "GPU_kernel_seconds": 4.1985537310000005
+    },
+    "4": {
+      "calls": 59,
+      "wall_seconds": 59.667691973000004,
+      "GPU_active_seconds": 57.123480900000004,
+      "GPU_kernel_seconds": 57.063202233000005
+    },
+    "8": {
+      "calls": 0,
+      "wall_seconds": 0,
+      "GPU_active_seconds": 0,
+      "GPU_kernel_seconds": 0
+    },
+    "1008": {
+      "calls": 118,
+      "wall_seconds": 2.1584772070000002,
+      "GPU_active_seconds": 1.9262796860000002,
+      "GPU_kernel_seconds": 1.9255046320000002
+    }
+  },
+  "SDK_total_wall_seconds": 127.15852195900001,
+  "bridge_remainder_inside_execute_seconds": 0.6643969019999929,
+  "initialization_seconds": 0.094266763,
+  "matrix_front_nested_in_bridge": {
+    "device_full": {
+      "calls": 59,
+      "total_seconds": 0.13548657589,
+      "status_readback_bytes": 236
+    },
+    "device_exact_refresh": {
+      "calls": 59,
+      "total_seconds": 0.32127301098000005,
+      "status_readback_bytes": 236
+    }
+  }
+}

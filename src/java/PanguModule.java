@@ -58,7 +58,7 @@ public final class PanguModule {
     private static void labelOption(SolverFeature own,SolverFeature direct){
         Set<String> used=new HashSet<>();
         for(String t:own.feature().tags())if(!t.equals(direct.tag()))used.add(own.feature(t).label());
-        String label="Pangu";int n=2;while(used.contains(label))label="Pangu "+(n++);
+        String label="PanguLU";int n=2;while(used.contains(label))label="PanguLU "+(n++);
         if(!label.equals(direct.label()))direct.label(label);
     }
     private static void configureDirect(SolverFeature own,SolverFeature direct){
@@ -111,12 +111,13 @@ public final class PanguModule {
         String old=consumer.getString("linsolver");
         for(String t:owner.feature().tags()){
             SolverFeature f=owner.feature(t);String note=f.comments();
-            if("Direct".equals(f.getType())&&note!=null&&note.startsWith(MARKER+target+"\n")&&"cudss".equals(f.getString("linsolver"))){consumer.set("linsolver",t);model.sol(p[0]).clearSolution();return t;}
+            if("Direct".equals(f.getType())&&note!=null&&note.startsWith(MARKER+target+"\n")&&"cudss".equals(f.getString("linsolver"))){labelOption(owner,f);consumer.set("linsolver",t);model.sol(p[0]).clearSolution();return t;}
         }
         String path=ownerPath(model,p);
         for(String t:owner.feature().tags()){
             SolverFeature f=owner.feature(t);String note=f.comments();
             if(note!=null&&note.startsWith(OPTION_MARKER+path+"\n")&&"cudss".equals(f.getString("linsolver"))){
+                labelOption(owner,f);
                 StringBuilder updated=new StringBuilder(OPTION_MARKER).append(path).append('\n');
                 for(String line:note.substring((OPTION_MARKER+path+"\n").length()).split("\n"))if(!line.startsWith(target+"\t")&&!line.isEmpty())updated.append(line).append('\n');
                 String previous=old;
@@ -138,7 +139,7 @@ public final class PanguModule {
             if(note!=null&&note.startsWith(MARKER+target+"\n")){consumer.set("linsolver",note.split("\n",-1)[2]);model.sol(p[0]).clearSolution();return;}
             if(note!=null&&note.startsWith(OPTION_MARKER))for(String line:note.split("\n"))if(line.startsWith(target+"\t")){consumer.set("linsolver",line.substring(target.length()+1));model.sol(p[0]).clearSolution();return;}
         }
-        throw new IllegalArgumentException("No saved Pangu configuration for "+target);
+        throw new IllegalArgumentException("No saved PanguLU configuration for "+target);
     }
     public static void main(String[]args)throws Exception{
         if(args.length!=5)throw new IllegalArgumentException("action input.mph output.mph target-or-auto run-flag");

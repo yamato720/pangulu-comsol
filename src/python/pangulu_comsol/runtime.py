@@ -69,10 +69,10 @@ def sdk():
     choices = [p.parent for p in container.glob('*/include')
                if (p / 'pangulu.h').is_file() and (p.parent / 'lib/libpangulu.so').is_file()]
     if len(choices) != 1:
-        raise ValueError('Keep exactly one complete extracted Pangu release inside pangu/. Found: ' + str(choices))
+        raise ValueError('Keep exactly one complete extracted PanguLU release inside pangu/. Found: ' + str(choices))
     path = choices[0].resolve()
     if not path.is_relative_to(container.resolve()):
-        raise ValueError('Pangu SDK must be inside this module\'s pangu/ folder')
+        raise ValueError('PanguLU SDK must be inside this module\'s pangu/ folder')
     return path
 
 
@@ -82,9 +82,9 @@ def sdk_info(path=None):
     version = re.search(r'PANGULU_VERSION_STRING\s+"([A-Za-z0-9._+-]+)"', header)
     abi = re.search(r'PANGULU_ABI_VERSION\s+(\d+)', header)
     if not version or not abi:
-        raise ValueError('Pangu release has no recognized version or ABI')
+        raise ValueError('PanguLU release has no recognized version or ABI')
     if int(abi[1]) != MODULE_ABI:
-        raise ValueError('This module supports Pangu ABI 2; install a matching module for ABI ' + abi[1])
+        raise ValueError('This module supports PanguLU ABI 2; install a matching module for ABI ' + abi[1])
     return dict(version=version[1], abi=int(abi[1]), path=str(path), core_sha256=sha(path / 'lib/libpangulu.so'))
 
 
@@ -118,7 +118,7 @@ def install(archive):
             continue
         try:
             if ('PC_APP_ROOT=' + str(ROOT)).encode() in (proc / 'environ').read_bytes().split(b'\0'):
-                raise ValueError('Close running COMSOL/module processes before updating Pangu')
+                raise ValueError('Close running COMSOL/module processes before updating PanguLU')
         except (PermissionError, FileNotFoundError, ProcessLookupError):
             pass
     with tempfile.TemporaryDirectory(prefix='.sdk-update-', dir=runtime) as temp:
@@ -128,7 +128,7 @@ def install(archive):
             tar.extractall(container, filter='data')
         roots = [p.parent.parent for p in container.glob('*/include/pangulu.h') if (p.parent.parent / 'lib/libpangulu.so').is_file()]
         if len(roots) != 1 or len(list(container.iterdir())) != 1:
-            raise ValueError('Archive must contain one complete Pangu release directory')
+            raise ValueError('Archive must contain one complete PanguLU release directory')
         verify(roots[0])
         info = sdk_info(roots[0])
         target, previous = ROOT / 'pangu', pathlib.Path(temp) / 'previous-pangu'
@@ -144,7 +144,7 @@ def install(archive):
             if previous.exists():
                 previous.rename(target)
             raise
-    print('Pangu SDK replaced:', info['version'], '; licence/ preserved')
+    print('PanguLU SDK replaced:', info['version'], '; licence/ preserved')
     return info
 
 
@@ -194,7 +194,7 @@ def base_env(threads=None):
 
 
 def clean_env(p=None, threads=None, execution='worker'):
-    if execution not in {'worker','direct'}:raise ValueError('Pangu execution must be worker or direct')
+    if execution not in {'worker','direct'}:raise ValueError('PanguLU execution must be worker or direct')
     c = cfg()
     p = p or sdk()
     env = base_env(threads)
@@ -252,7 +252,7 @@ def build():
         includes = ['-I' + str(p / 'include'), '-I' + str(cuda / 'include'), '-I' + str(source)]
         libraries = ['-L' + str(p / 'lib'), '-L' + str(cuda / 'lib64'), '-Wl,--enable-new-dtags', '-Wl,-rpath,$ORIGIN/../cuda/lib64']
         native_libs = [*libraries, '-Wl,--no-as-needed', '-lpangulu', '-lcudart', '-lcublas', '-lcublasLt', '-ldl', '-lm']
-        # This original SDK component is normally dlopened later by Pangu.
+        # This original SDK component is normally dlopened later by PanguLU.
         # Include it in the backend's dependency group so direct DEEPBIND
         # also covers its GNU OpenMP symbols before that later dlopen.
         backend_components = [name for name in ['libopensparse_hunyuangraph.so']
@@ -321,7 +321,7 @@ def ensure_module():
     output = module_dir()
     manifest = read(output / 'manifest.json')
     if manifest['pangu_abi'] != sdk_info()['abi']:
-        raise ValueError('Pangu ABI does not match this module; install an updated COMSOL module')
+        raise ValueError('PanguLU ABI does not match this module; install an updated COMSOL module')
     for name, digest in manifest['files'].items():
         if sha(output / name) != digest:
             raise ValueError('Module file changed: ' + name + '; restore the distributed module')
@@ -329,9 +329,9 @@ def ensure_module():
 
 
 def comsol_command(session, threads=None, backend='pangu', execution=None):
-    if execution is not None and backend!='pangu':raise ValueError('Execution mode applies only to the Pangu backend')
+    if execution is not None and backend!='pangu':raise ValueError('Execution mode applies only to the PanguLU backend')
     execution=execution or 'worker'
-    if execution not in {'worker','direct'}:raise ValueError('Pangu execution must be worker or direct')
+    if execution not in {'worker','direct'}:raise ValueError('PanguLU execution must be worker or direct')
     c = cfg()
     session = pathlib.Path(session)
     session.mkdir(parents=True, exist_ok=True)
@@ -339,7 +339,7 @@ def comsol_command(session, threads=None, backend='pangu', execution=None):
         p = sdk()
         verify(p)
         output = ensure_module()
-        if execution=='direct' and not (output/'libpangu_backend.so').is_file():raise ValueError('Build the updated Pangu components before using direct execution')
+        if execution=='direct' and not (output/'libpangu_backend.so').is_file():raise ValueError('Build the updated PanguLU components before using direct execution')
         env = clean_env(p, threads,execution)
         original_keys = licence_paths()
         keys = session / 'licence'
@@ -351,7 +351,7 @@ def comsol_command(session, threads=None, backend='pangu', execution=None):
         check = subprocess.run([str(output / 'native_license')], env=env, text=True, capture_output=True)
         (session / 'native-license.log').write_text(check.stdout + check.stderr)
         if check.returncode or 'NATIVE_LICENSE_OK' not in check.stdout:
-            raise RuntimeError('Pangu/GPU/licence preflight failed; see ' + str(session / 'native-license.log'))
+            raise RuntimeError('PanguLU/GPU/licence preflight failed; see ' + str(session / 'native-license.log'))
         info = dict(backend=backend, execution=execution,sdk=sdk_info(p), worker=str(output / 'pangulu_worker') if execution=='worker' else None, library=str(output / 'libcudss.so.0.7.1'),
                     library_sha256=sha(output / 'libcudss.so.0.7.1'), licences=[dict(name=key.name, sha256=sha(key)) for key in original_keys])
         if (output/'libpangu_backend.so').is_file():info.update(backend_library=str(output/'libpangu_backend.so'),backend_library_sha256=sha(output/'libpangu_backend.so'))
@@ -391,7 +391,7 @@ def doctor(output=None, native_output=True):
     if native_output:
         print(result.stdout, end='')
     if report['status'] != 'completed':
-        raise RuntimeError('Pangu/GPU/licence check failed: ' + result.stderr.strip())
+        raise RuntimeError('PanguLU/GPU/licence check failed: ' + result.stderr.strip())
     return report
 
 

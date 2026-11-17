@@ -21,7 +21,7 @@ python -m pip install -e . -r dev/requirements.txt
 python -B -m unittest discover -s dev/tests -v
 ```
 
-原生及 COMSOL 测试另需 gcc/g++、COMSOL 6.4、CUDA 12.9、原始 Pangu SDK 与该 GPU 的许可。版本基线和原厂库哈希记录在 [environment.json](environment.json)。
+原生及 COMSOL 测试另需 gcc/g++、COMSOL 6.4、CUDA 12.9、原始 PanguLU SDK 与该 GPU 的许可。版本基线和原厂库哈希记录在 [environment.json](environment.json)。
 
 GPU CSR 构建需要 CUDA 12 的 `nvcc`；可用 `PC_CUDA_COMPILER=/path/to/nvcc` 和 `NVCC_CCBIN=/path/to/supported/g++` 指定工具链。构建清单 `device_csr` 必须为 `true`，启动日志应包含 `GPU CSR exact validation and CUDA IPC enabled`。仅有运行库/头文件时会构建明确标识的 HOST 回退版。手工 profile 构建需要将 `device.cu` 编译为 PIC 对象并链接到 `libcudss`，同时为 `bridge.cpp` 定义 `PGL_DEVICE=1`；该对象只依赖 cudart，数值后端不需要重复链接 CUDA 核心。
 
@@ -50,8 +50,8 @@ python3 -B dev/tools/install_cuda_dependencies.py
 | `benchmarks/s/` | S 模型 20 kHz / 59 频点、四物理场 CPU 参考比较与资源采样 |
 | `benchmarks/compatibility/` | COMSOL 兼容接口审计 |
 | `benchmarks/mycudss/` | 原生 cuDSS / 直接封装 / worker 封装校准及 S 档对比 |
-| `benchmarks/pangu_execution*.py` | Pangu worker/direct 完整流程及固定矩阵对比 |
-| `benchmarks/matrix_duel/` | 同矩阵 Pangu/cuDSS 原生 GPU 阶段计时、CUPTI 与数值核对 |
+| `benchmarks/pangu_execution*.py` | PanguLU worker/direct 完整流程及固定矩阵对比 |
+| `benchmarks/matrix_duel/` | 同矩阵 PanguLU/cuDSS 原生 GPU 阶段计时、CUPTI 与数值核对 |
 | `benchmarks/pinched_cylinder/` | 圆柱薄壳模型、矩阵捕获、独立重放及失败记录方法 |
 | `benchmarks/profile_study3.py` | Study 3 CPU/GPU 瓶颈采样 |
 | `tools/package-release.py` | 按白名单生成客户运行包 |

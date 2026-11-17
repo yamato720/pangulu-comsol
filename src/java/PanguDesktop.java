@@ -89,7 +89,7 @@ public final class PanguDesktop implements BundleActivator {
                     Thread.sleep(500);
                 }catch(InterruptedException e){return;}catch(Throwable e){log("WAITING "+e);try{Thread.sleep(1000);}catch(InterruptedException stop){return;}}
             }
-        },"Pangu-desktop-startup");finder.setDaemon(true);finder.start();
+        },"PanguLU-desktop-startup");finder.setDaemon(true);finder.start();
     }
     @Override public void stop(BundleContext context){stopped=true;}
 }
