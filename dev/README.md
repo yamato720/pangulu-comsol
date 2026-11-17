@@ -23,7 +23,7 @@ python -B -m unittest discover -s dev/tests -v
 
 原生及 COMSOL 测试另需 gcc/g++、COMSOL 6.4、CUDA 12.9、原始 PanguLU SDK 与该 GPU 的许可。版本基线和原厂库哈希记录在 [environment.json](environment.json)。
 
-GPU CSR 构建需要 CUDA 12 的 `nvcc`；可用 `PC_CUDA_COMPILER=/path/to/nvcc` 和 `NVCC_CCBIN=/path/to/supported/g++` 指定工具链。构建清单 `device_csr` 必须为 `true`，启动日志应包含 `GPU CSR exact validation and CUDA IPC enabled`。仅有运行库/头文件时会构建明确标识的 HOST 回退版。手工 profile 构建需要将 `device.cu` 编译为 PIC 对象并链接到 `libcudss`，同时为 `bridge.cpp` 定义 `PGL_DEVICE=1`；该对象只依赖 cudart，数值后端不需要重复链接 CUDA 核心。
+GPU CSR 构建需要 CUDA 12 的 `nvcc`；可用 `PC_CUDA_COMPILER=/path/to/nvcc` 和 `NVCC_CCBIN=/path/to/supported/g++` 指定工具链。构建清单 `device_csr` 必须为 `true`，启动日志应包含 `GPU CSR validation available; worker IPC is negotiated before use`。worker 首次使用设备矩阵时还需记录 `ipc_probe_passed` 或 `transport_fallback`，确认实际选择的传输方式。仅有运行库/头文件时会构建明确标识的 HOST 回退版。手工 profile 构建需要将 `device.cu` 编译为 PIC 对象并链接到 `libcudss`，同时为 `bridge.cpp` 定义 `PGL_DEVICE=1`；该对象只依赖 cudart，数值后端不需要重复链接 CUDA 核心。
 
 `device.cu` 使用完整偏移边界校验、索引范围/顺序校验和每个索引/数值位的比较；没有结构哈希。非法偏移在访问索引前拒绝；无序和重复索引走 HOST 的严格规范化/重复检查。IPC 句柄只导出桥接层独立分配的内存，因此调用者的子分配、managed 内存和原地更新不影响进程隔离。设备矩阵和多 RHS 缓冲区分别保留，旧分配在后端完成切换后释放。
 
@@ -75,3 +75,5 @@ S 测试需要另行提供 `models/S_after_mapping.mph` 和 `models/S_full59_sol
 许可统一放根目录 licence/，SDK 更新使用 pangu-comsol package update。所有入口直接使用系统 CUDA/NVML 驱动，无环境选择开关或专用重执行入口。
 
 此前版本化 SDK 管理、Slurm 模板和远端性能脚本已作为历史开发材料保留在本次交付验证目录的 legacy-developer-tools.tar.gz。它们不进入客户运行包，也不再挂在主启动 CLI 上。
+
+开发构建需要`.dev`版本号。稳定用户版默认隐藏测试页/F8/test命令，并从wheel排除testing.py；测试可显式模拟两种构建验证隔离。worker传输探针的CPU故障注入用例为`tests/ipc_probe_test.c`，检查能力失败与真实错误的区别。

@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'src/python'))
-from pangulu_comsol import cli,execution
+from pangulu_comsol import cli,execution,development
 from pangulu_comsol import runtime as core
 from pangulu_comsol.tui import PanguComsolApp
 from textual.widgets import Select,Button
@@ -42,6 +42,8 @@ class ExecutionTests(unittest.TestCase):
 
 
 class ExecutionMenuTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        mode=patch.object(development,'is_development_build',return_value=True);mode.start();self.addCleanup(mode.stop)
     async def test_main_and_test_pages_expose_Pangu_execution_without_saving_settings(self):
         with tempfile.TemporaryDirectory() as temp,patch.object(core,'ROOT',Path(temp)):
             app=PanguComsolApp()

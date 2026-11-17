@@ -13,8 +13,7 @@ Linux x86_64 预编译组件的系统库要求以配套组件说明为准。
 从本地源码安装：pipx install .，或在 Python 虚拟环境中 python -m pip install .。
 安装后执行 pangu-comsol 打开终端菜单，F1–F5 切换页面，F6 刷新，F7 检查，
 Ctrl+C 取消当前操作，Ctrl+Q 退出。操作详情可查看具体错误，处理后可重试。
-F8 打开可选测试页，可选择原生 cuDSS、直接封装或 worker 封装。
-校准源码和数值验收工具单独提供，组件位于 runtime/tests/；普通运行不需要它们。
+用户版只显示五个正式页面，不提供F8或test子命令；测试工具仅供开发构建。
 ↑↓ 或 Tab / Shift+Tab 移动焦点，Enter 操作，空格切换开关或勾选许可。
 蓝框和按钮上的 ▶ 表示当前焦点，绿色页签表示当前页面；焦点不等于许可勾选。
 Esc 回到页签后用 ←→ 切换页面。下拉框打开后 ↑↓ 选择、Enter 确认、Esc 取消。
@@ -46,8 +45,9 @@ init 初始化本模块 config/runtime.json，已有配置保持原样。
   ./pangu-comsol run --backend cudss /path/to/model.mph
   ./pangu-comsol run --execution direct /path/to/model.mph
 
-PanguLU 执行方式默认 worker；运行页和测试页可选择同进程 direct。
+PanguLU 执行方式默认 worker；运行页可选择同进程 direct。
 两种方式共用 runtime/module/libpangu_backend.so，模型内仍选择同一个 PanguLU Direct。
+worker会在分析前探测GPU进程间共享能力；不可用时自动采用兼容传输，仍由PanguLU GPU计算。
 direct 为本次启动省略 libjsig 预加载，以满足原始 SDK 的运行条件；原厂脚本、
 SDK 和许可保持，授权仍由原始 SDK 校验。私有启动脚本位于 runtime/launchers/。
 该启动条件与默认信号预加载不同，已验收范围见对应报告；worker 保留标准启动。
@@ -90,3 +90,6 @@ license auto 使用 licence/ 中全部 .key / .license 文件；传给 SDK 时�
 这些命令只管理本模块配置，不写 COMSOL 偏好文件，不重定向已有目录设置。
 线程数默认继承原设置，仅 run --threads N 时指定本次线程数。
 COMSOL 自身正常保存界面状态和用户操作的行为保持原样。
+
+用户版0.7.0需要配套数值组件0.5.0。更新后可提供对应预编译组件，或执行pangu-comsol build；
+旧组件会明确提示更新，原SDK、许可、配置和模型保留。

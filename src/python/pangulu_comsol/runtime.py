@@ -2,9 +2,11 @@
 """COMSOL launcher with a replaceable vendor SDK and central licence folder."""
 import datetime, hashlib, json, os, pathlib, re, shutil, subprocess, tarfile, tempfile, zipfile
 from .paths import application_home, production_sources, configuration_template
+from . import development
 
 ROOT = application_home()
 MODULE_ABI = 2
+MODULE_VERSION = '0.5.0'
 
 
 def read(path):
@@ -298,7 +300,8 @@ def build():
         build_java(output)
         shipped = ['native_license', 'pangulu_worker', 'libpangu_backend.so','libcudss.so.0.7.1', 'PanguModule.jar', 'PanguDesktop.jar']
         sources = [*java_sources(), *source.glob('*.c'), *source.glob('*.cpp'), *source.glob('*.cu'), *source.glob('*.h')]
-        write(output / 'manifest.json', dict(module_version='0.4.0', pangu_abi=MODULE_ABI, comsol_series='6.4', cudss_abi='0.7.1',execution_modes=['worker','direct'],
+        write(output / 'manifest.json', dict(module_version=MODULE_VERSION, pangu_abi=MODULE_ABI, comsol_series='6.4', cudss_abi='0.7.1',execution_modes=['worker','direct'],
+              ipc_protocol=6, worker_ipc_probe=True,
               files={name: sha(output / name) for name in shipped}, build_sdk_version=sdk_info(p)['version'],
               device_csr=bool(compiler), cuda_compiler=compiler,
               device_min_compute_capability=75 if compiler else None,
@@ -320,6 +323,8 @@ def build():
 def ensure_module():
     output = module_dir()
     manifest = read(output / 'manifest.json')
+    if manifest.get('module_version') != MODULE_VERSION:
+        raise ValueError('Runtime components need update to '+MODULE_VERSION+'; run pangu-comsol build or install matching components')
     if manifest['pangu_abi'] != sdk_info()['abi']:
         raise ValueError('PanguLU ABI does not match this module; install an updated COMSOL module')
     for name, digest in manifest['files'].items():
@@ -364,6 +369,8 @@ def comsol_command(session, threads=None, backend='pangu', execution=None):
         env['LD_LIBRARY_PATH'] = str(pathlib.Path(c['cuda_root']) / 'lib64')
         info = dict(backend=backend, library=str(library), library_sha256=sha(library))
     elif backend in {'mycudss-direct','mycudss-worker'}:
+        if not development.is_development_build():
+            raise ValueError('Optional test backends are available only in development builds')
         from . import testing
         output,env,info=testing.environment(backend,threads)
     else:
@@ -454,5 +461,7 @@ def launch(args):
     marker = 'PANGU_MODEL_INSPECT_END' if args.cmd == 'inspect' else 'PANGU_CONFIG_COMPLETE'
     if result.returncode or marker not in text:
         raise RuntimeError('COMSOL command failed; inspect session logs')
-    if args.run and ('PANGU_RUN_COMPLETE' not in text or (args.cmd == 'configure' and 'worker_started' not in (session / 'stderr.log').read_text())):
-        raise RuntimeError('Requested solve/backend was not verified')
+    if args.run:
+        event = 'direct_started' if execution == 'direct' else 'worker_started'
+        if 'PANGU_RUN_COMPLETE' not in text or (args.cmd == 'configure' and event not in (session / 'stderr.log').read_text()):
+            raise RuntimeError('Requested solve/backend was not verified')

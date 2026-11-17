@@ -57,6 +57,7 @@ struct BridgeCounts {
  uint64_t matrix_allocations=0,dense_allocations=0,status_allocations=0,device_frees=0,cleanup_errors=0;
  uint64_t device_bytes_live=0,device_bytes_peak=0;
  uint64_t matrix_reserve_oom_fallbacks=0,confirmed_device_pattern_changes=0;
+ uint64_t ipc_probe_calls=0,ipc_probe_allocations=0,ipc_fallbacks=0;
  uint64_t n_min=0,n_max=0,nnz_min=0,nnz_max=0;
 };
 struct cudssData {PanguBackend *local=nullptr;size_t memory_capacity=0;int socket=-1;pid_t worker=-1;int fd=-1;void *memory=MAP_FAILED;BridgeRequest request={};BridgeResponse last={};int info=0,index_bytes=4;bool analyzed=false,factored=false;const int *interrupt=nullptr;std::map<int,std::vector<unsigned char>> user;
@@ -67,6 +68,7 @@ struct cudssData {PanguBackend *local=nullptr;size_t memory_capacity=0;int socke
  cudaIpcMemHandle_t matrix_ipc={},dense_ipc={};bool device_valid=false;
  uint64_t value_counter=0,data_id=0;std::vector<DeviceAllocation> retired_matrix,retired_dense;
  BridgeCounts counts;bool logged_interrupt=false,logged_analysis=false,logged_pivots=false,logged_memory=false;
+ bool ipc_checked=false,ipc_available=false;int ipc_failure_cuda_status=0;
 };
 static void log_event(const char *event,const char *detail=""){char b[1024];int n=snprintf(b,sizeof(b),"PGL_BRIDGE {\"event\":\"%s\",\"pid\":%d,\"backend\":\"%s\",\"detail\":\"%s\"}\n",event,getpid(),direct_execution()?"pangulu_direct":"pangulu_worker",detail);if(n>0)write(STDERR_FILENO,b,std::min((size_t)n,sizeof(b)-1));}
 #define bridge_now() PGL_NOW()
@@ -98,6 +100,7 @@ static void free_allocations(cudssData_t d,std::vector<DeviceAllocation>&allocat
 static void free_device(cudssData_t d){free_allocations(d,d->retired_matrix);free_allocations(d,d->retired_dense);free_allocation(d,d->device_matrix,d->device_matrix_capacity);free_allocation(d,d->device_dense,d->device_dense_capacity);free_allocation(d,d->device_status,PGL_DEVICE_STATUS_WORDS*sizeof(int));}
 static void data_summary(cudssData_t d){
  const auto &c=d->counts;
+ fprintf(stderr,"PGL_TRANSPORT_SUMMARY {\"pid\":%d,\"data_id\":%llu,\"ipc_probe_calls\":%llu,\"ipc_probe_allocations\":%llu,\"ipc_fallbacks\":%llu,\"ipc_failure_cuda_status\":%d}\n",getpid(),(unsigned long long)d->data_id,(unsigned long long)c.ipc_probe_calls,(unsigned long long)c.ipc_probe_allocations,(unsigned long long)c.ipc_fallbacks,d->ipc_failure_cuda_status);
  fprintf(stderr,"PGL_BRIDGE_SUMMARY {\"pid\":%d,\"data_id\":%llu,\"execution\":\"%s\",\"analysis_requests\":%llu,\"numeric_requests\":%llu,\"solve_requests\":%llu,\"worker_starts\":%llu,\"device_validations\":%llu,\"host_full_stages\":%llu,\"structure_epochs_created\":%llu,\"device_value_epochs_created\":%llu,\"matrix_allocations\":%llu,\"dense_allocations\":%llu,\"status_allocations\":%llu,\"device_frees\":%llu,\"bridge_device_bytes_live\":%llu,\"bridge_device_bytes_peak\":%llu,\"cleanup_errors\":%llu,\"matrix_reserve_oom_fallbacks\":%llu,\"confirmed_device_pattern_changes\":%llu,\"n_min\":%llu,\"n_max\":%llu,\"nnz_min\":%llu,\"nnz_max\":%llu}\n",getpid(),(unsigned long long)d->data_id,direct_execution()?"direct":"worker",(unsigned long long)c.analysis_requests,(unsigned long long)c.numeric_requests,(unsigned long long)c.solve_requests,(unsigned long long)c.worker_starts,(unsigned long long)c.device_validations,(unsigned long long)c.host_stages,(unsigned long long)c.structure_versions,(unsigned long long)c.value_versions,(unsigned long long)c.matrix_allocations,(unsigned long long)c.dense_allocations,(unsigned long long)c.status_allocations,(unsigned long long)c.device_frees,(unsigned long long)c.device_bytes_live,(unsigned long long)c.device_bytes_peak,(unsigned long long)c.cleanup_errors,(unsigned long long)c.matrix_reserve_oom_fallbacks,(unsigned long long)c.confirmed_device_pattern_changes,(unsigned long long)c.n_min,(unsigned long long)c.n_max,(unsigned long long)c.nnz_min,(unsigned long long)c.nnz_max);
 }
 static cudssStatus_t start_worker(cudssData_t d){
@@ -126,12 +129,13 @@ static cudssStatus_t rpc(cudssData_t d,int command){
   api.dispatch(d->local,&d->request,&d->last,d->memory);
  }else{
   cudssStatus_t status=start_worker(d);if(status!=CUDSS_STATUS_SUCCESS)return status;
-  if(bridge_send(d->socket,&d->request,sizeof(d->request),(command==BR_CLOSE||command==BR_INITIALIZE)?-1:d->fd)){d->info=-1;return CUDSS_STATUS_EXECUTION_FAILED;}
+  if(bridge_send(d->socket,&d->request,sizeof(d->request),(command==BR_CLOSE||command==BR_INITIALIZE||command==BR_PROBE_IPC)?-1:d->fd)){d->info=-1;return CUDSS_STATUS_EXECUTION_FAILED;}
   int extra=-1;if(bridge_receive(d->socket,&d->last,sizeof(d->last),&extra)){if(extra>=0)close(extra);d->info=-2;return CUDSS_STATUS_EXECUTION_FAILED;}if(extra>=0)close(extra);
  }
  if(d->last.magic!=PGL_BRIDGE_MAGIC){d->info=-3;return CUDSS_STATUS_EXECUTION_FAILED;}
  const double elapsed=bridge_now()-started;
  PGL_DETAIL(char timing[768];snprintf(timing,sizeof(timing),"command=%d structure_epoch=%llu roundtrip_seconds=%.9g worker_execute_seconds=%.9g conversion_seconds=%.9g value_update_seconds=%.9g pattern_seconds=%.9g release_seconds=%.9g canonical_nnz=%llu status=%d",command,(unsigned long long)d->request.structure_epoch,elapsed,d->last.analysis_seconds+d->last.factor_seconds+d->last.solve_seconds,d->last.conversion_seconds,d->last.value_update_seconds,d->last.pattern_seconds,d->last.release_seconds,(unsigned long long)d->last.canonical_nnz,d->last.status);log_event("rpc_timing",timing);)
+ if(command==BR_PROBE_IPC&&d->last.stage==BR_PROBE_IPC&&d->last.status==BR_TRANSPORT_UNAVAILABLE){d->info=0;return CUDSS_STATUS_NOT_SUPPORTED;}
  d->info=d->last.status?d->last.status:0;
  if(d->last.status){fprintf(stderr,"PGL_ERROR status=%d pangulu_status=%d cuda_status=%d command=%d\n",d->last.status,d->last.pangulu_status,d->last.cuda_status,command);return d->last.status==2?CUDSS_STATUS_ALLOC_FAILED:d->last.status==4?CUDSS_STATUS_NOT_SUPPORTED:CUDSS_STATUS_EXECUTION_FAILED;}
  if(command==BR_ANALYZE||command==BR_FACTOR){
@@ -175,6 +179,36 @@ static void stage_log(cudssData_t d,const char*kind,double started,const CopyMet
 #define stage_log(...) ((void)0)
 #endif
 #if PGL_DEVICE
+static bool ipc_unavailable(cudaError_t error){return error==cudaErrorInvalidResourceHandle||error==cudaErrorNotSupported;}
+/* Negotiate transport before any matrix analysis or numerical phase. The
+ * original GPU input and the owning SDK handle are not modified by this probe. */
+static cudssStatus_t worker_ipc(cudssData_t d,cudssHandle_t h,bool &available){
+ available=true;if(direct_execution())return CUDSS_STATUS_SUCCESS;
+ if(d->ipc_checked){available=d->ipc_available;return CUDSS_STATUS_SUCCESS;}
+ const size_t bytes=2*1024*1024;void *probe=nullptr;cudaError_t error=cudaMalloc(&probe,bytes);
+ if(error)return error==cudaErrorMemoryAllocation?CUDSS_STATUS_ALLOC_FAILED:CUDSS_STATUS_EXECUTION_FAILED;
+ d->counts.ipc_probe_allocations++;count_allocation(d,bytes);
+ uint64_t value=PGL_BRIDGE_MAGIC;error=cudaMemcpy(probe,&value,sizeof(value),cudaMemcpyHostToDevice);
+ cudaIpcMemHandle_t handle={};if(!error)error=cudaIpcGetMemHandle(&handle,probe);
+ cudssStatus_t status=CUDSS_STATUS_SUCCESS;int unavailable=0;
+ if(error){if(ipc_unavailable(error)){unavailable=(int)error;cudaGetLastError();}else status=CUDSS_STATUS_EXECUTION_FAILED;}
+ else{
+  BridgeRequest saved=d->request;d->request={};d->request.device=h->device;d->request.memory_space=BR_MEMORY_IPC;
+  memcpy(d->request.matrix_ipc,&handle,sizeof(handle));d->counts.ipc_probe_calls++;
+  status=rpc(d,BR_PROBE_IPC);
+  if(status==CUDSS_STATUS_NOT_SUPPORTED&&d->last.status==BR_TRANSPORT_UNAVAILABLE){unavailable=d->last.cuda_status;status=CUDSS_STATUS_SUCCESS;}
+  d->request=saved;
+ }
+ uint64_t cleanup_errors=d->counts.cleanup_errors;free_allocation(d,probe,bytes);
+ if(d->counts.cleanup_errors!=cleanup_errors)return CUDSS_STATUS_EXECUTION_FAILED;
+ if(status!=CUDSS_STATUS_SUCCESS)return status;
+ d->ipc_checked=true;d->ipc_available=unavailable==0;d->ipc_failure_cuda_status=unavailable;available=d->ipc_available;
+ if(!available){
+  d->counts.ipc_fallbacks++;char detail[240];snprintf(detail,sizeof(detail),"CUDA IPC probe unavailable (%d); shared HOST transport selected before analysis; PanguLU GPU computation retained",unavailable);
+  log_event("transport_fallback",detail);
+ }else log_event("ipc_probe_passed","GPU matrix transport enabled");
+ return CUDSS_STATUS_SUCCESS;
+}
 static bool device_source(const void *p,int device){
  if(!p)return false;cudaPointerAttributes a={};cudaError_t e=cudaPointerGetAttributes(&a,p);
  if(e!=cudaSuccess){cudaGetLastError();return false;}
@@ -205,6 +239,8 @@ static cudssStatus_t stage_device_matrix(cudssData_t d,cudssHandle_t h,cudssMatr
  if(!h->device_kernels)return CUDSS_STATUS_SUCCESS;
  if(!device_source(A->starts,h->device)||!device_source(A->indices,h->device)||
     !device_source(A->values,h->device)||(A->ends&&!device_source(A->ends,h->device)))return CUDSS_STATUS_SUCCESS;
+ bool available=false;cudssStatus_t transport=worker_ipc(d,h,available);if(transport!=CUDSS_STATUS_SUCCESS)return transport;
+ if(!available)return CUDSS_STATUS_SUCCESS;
  const double started=bridge_now();
  BridgeRequest q={};q.magic=PGL_BRIDGE_MAGIC;q.n=A->rows;q.nnz=A->nnz;q.nrhs=1;
  q.value_type=A->valueType;q.device=h->device;q.matrix_type=A->type;q.matrix_view=A->view;
@@ -330,7 +366,7 @@ cudssStatus_t cudssCreate(cudssHandle_t*h){
 #endif
  log_event("create","cuDSS ABI 0.7.1 mapped to PanguLU, no native cuDSS fallback");
  log_event("execution_policy","version=v7_data_handle_lifecycle online_residual_check=off iterative_refinement=off diagnostic_matrix_hashes=off automatic_factor_retry=off");
- log_event("device_transport",(*h)->device_kernels?"GPU CSR exact validation and CUDA IPC enabled":PGL_DEVICE?"HOST fallback; GPU compute capability is below 7.5":"HOST fallback; build with PC_CUDA_COMPILER to enable GPU CSR");
+ log_event("device_transport",(*h)->device_kernels?"GPU CSR validation available; worker IPC is negotiated before use":PGL_DEVICE?"HOST fallback; GPU compute capability is below 7.5":"HOST fallback; build with PC_CUDA_COMPILER to enable GPU CSR");
  return CUDSS_STATUS_SUCCESS;
 }
 cudssStatus_t cudssCreateMg(cudssHandle_t*h,int count,int*devices){if(count!=1||!devices)return CUDSS_STATUS_NOT_SUPPORTED;if(cudaSetDevice(devices[0])!=cudaSuccess)return CUDSS_STATUS_INVALID_VALUE;return cudssCreate(h);}

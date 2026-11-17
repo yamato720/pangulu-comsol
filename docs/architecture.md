@@ -11,7 +11,6 @@
 | 终端界面 | `src/python/pangulu_comsol/tui.py` | 页面、后台操作、错误反馈与取消 |
 | 安装与数据目录 | `paths.py`、`pyproject.toml`、`setup.py` | 标准命令入口、独立数据目录、正式构建资源 |
 | 命令与管理 | `src/python/pangulu_comsol/cli.py` | `init`、`config`、`package`、`license` |
-| 可选测试入口 | `src/python/pangulu_comsol/testing.py` | 独立校准组件的构建、校验、后端环境和可选验收工具调度 |
 | 运行与构建 | `src/python/pangulu_comsol/runtime.py` | `launch`、`comsol_command`、`clean_env`、`build` |
 | GUI 选项 | `src/java/PanguDesktop.java` | `start`、空闲时的 `tick` |
 | 模型配置 | `src/java/PanguModule.java` | `targets`、`registerAll`、`apply`、`restore` |
@@ -28,7 +27,7 @@
 2. COMSOL 的 `-cudssroot` 指向本模块 `runtime/module/`，从那里加载 `libcudss.so.0.7.1`。
 3. GUI 的 `PanguDesktop` 在空闲时用 `PanguModule.registerAll` 为所有兼容求解器操作添加标准 Direct 选项，保留原来的选择和已有解。用户在 Linear solver 中选择 PanguLU 后使用 `cudss` 槽位。批处理则用 `PanguModule.apply` 显式选择指定节点。
 4. COMSOL 组装稀疏矩阵后调用 cuDSS 接口。`src/bridge.cpp` 接收这些调用，检查 CSR、标量类型、结构和求解阶段。
-5. 有序且无重复的 GPU CSR 由 CUDA 核心完整检查、归一化并复制到桥接层自己的 GPU 快照。默认 worker 模式通过 Unix socket 发送命令和 CUDA IPC 句柄；direct 在进程内使用同一快照。HOST、混合内存及无序 CSR 保留 HOST 规范化路径。
+5. IPC 可用时，有序且无重复的 GPU CSR 由 CUDA 核心完整检查、归一化并复制到桥接层自己的 GPU 快照，worker 通过 Unix socket 接收命令和 IPC 句柄；direct 在进程内使用同一快照。IPC 不可用以及 HOST、混合内存或无序 CSR 使用严格 HOST 规范化及共享内存传输路径，数值计算仍由 PanguLU GPU 完成。
 6. 两种模式共用 `libpangu_backend.so`。GPU 快照直接以 CSR/DEVICE 交给 PanguLU；HOST 回退路径转换为 CSC/HOST。后端通过厂商公共 C API 调用分析、分解、重分解和回代。
 7. GPU 路径在独立的设备缓冲区传递 RHS 和解，HOST 路径使用原暂存区。完成数值阶段后检查解的有限性，再复制回调用者；COMSOL 继续外层迭代、时间步和物理场恢复。
 
@@ -78,7 +77,7 @@ flowchart TD
 
 L2 的相同结构更新数值后直接重分解。真实结构变化时销毁旧矩阵描述符，再对相同设备、标量类型和矩阵类型的现有 handle 执行完整 ANALYSIS，覆盖旧结构；这已由原始 SDK 的独立变 n/nnz/三角和释放旧输入实验验证。类型、精度、设备、复用策略改变或 native 失败后重建分析，仍创建新 handle。未请求 L2 时保留原有重新分析规则。无序 CSR 回到 HOST 的严格规范化路径，重复位置会被拒绝。HOST 分析回调也逐元素检查并保留未变结构的 epoch，避免重复 CSR→CSC。DEVICE 与 managed 输入只作为复制源，调用者的子分配和偏移地址不会被导出，也不会被数值后端改写。
 
-worker 只打开桥接层 `cudaMalloc` 分配的 CUDA IPC 句柄，不使用另一进程的裸地址。矩阵和 dense 缓冲区分别增长；旧分配保留到后端成功切换后才释放。关闭时先销毁 PanguLU 描述符/句柄并关闭 IPC 映射，等待 worker 退出，然后释放导出端内存。CUDA IPC 导出不可用会选择 HOST 路径；导入失败返回真实 CUDA 错误，不自动重复任何数值阶段。
+worker 只打开桥接层 `cudaMalloc` 分配的 CUDA IPC 句柄，不使用另一进程的裸地址。矩阵和 dense 缓冲区分别增长；旧分配保留到后端成功切换后才释放。关闭时先销毁 PanguLU 描述符/句柄并关闭 IPC 映射，等待 worker 退出，然后释放导出端内存。worker 在第一个设备矩阵使用前，以独立临时分配实际探测 IPC 导出、导入、标记读回和关闭。已知的无效资源句柄/不支持错误被标记为传输能力不可用，随后选择严格 HOST 共享传输，仍调用原厂 GPU 数值库。OOM、标记不符、读回/关闭失败等错误不会伪装成能力回退；探测后的实际数值失败仍返回真实错误，不自动重试。协议magic与数值组件版本同步更新，拒绝混用旧worker。
 
 矩阵 GPU 分配预留实际长度的 12.5%，总容量不超过 20 GiB；请求的 `matrix_bytes` 始终是实际有效长度，不包含余量。只有预留分配返回显存不足时才回退精确尺寸，并累计 `matrix_reserve_oom_fallbacks`。已有容量内的 nnz 增长不会重新分配或导入 IPC，严格结构检测和真实重分析不受影响。
 
@@ -112,10 +111,12 @@ SDK 完整原件放在 `pangu/` 下唯一发行目录，许可放在根目录 `l
 
 终端页面通过独立子进程调用同一 CLI，不在界面线程执行 GPU 检查、解压或编译。COMSOL GUI 使用独立进程和会话日志，终端界面退出不依赖管道维持 GUI。
 
-可选 `test` 入口提供原生 cuDSS、直接转发和独立 worker 转发三个选择；测试数值核心均为原生 NVIDIA cuDSS。测试封装与内部 S 验收代码在单独提供的工具集中，本机位于忽略的 `dev/benchmarks/mycudss/`。`runtime/tests/mycudss/` 保存独立组件及原生库/构建产物哈希，生产 PanguLU 组件继续位于 `runtime/module/`。
+开发构建的 `test` 入口提供原生 cuDSS、直接转发和独立 worker 转发三个选择；测试数值核心均为原生 NVIDIA cuDSS。该入口的 `testing.py`、测试封装与内部 S 验收代码保留在开发分支，封装源码位于 `dev/benchmarks/mycudss/`。`runtime/tests/mycudss/` 保存独立组件及原生库/构建产物哈希，生产 PanguLU 组件继续位于 `runtime/module/`。
 
 PanguLU 的 `--execution worker/direct` 与上述 NVIDIA 校准后端独立，测试页也提供 PanguLU 及其执行方式。direct 通过 `dlopen` 在 COMSOL 进程中加载共同后端；不启动 worker。加载使用 `RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND`，让 SDK 的 GNU OpenMP 符号优先绑定自身依赖组，COMSOL 保留原来的 Intel OpenMP 绑定。普通全局优先查找会把 SDK 的 `GOMP_task` 解析到 COMSOL 的 `libiomp5`；已观察到该实现对 `if(0)` 任务未执行 GNU `firstprivate` 复制回调，在大型图分析中导致错误上下文和越界复制。CPU 回归程序独立覆盖这一加载边界，不修改任何厂商库。
 
 DEEPBIND 不会自动传播到 SDK 后续调用的普通 `dlopen`。SDK 包内存在原始 `libopensparse_hunyuangraph.so` 时，构建把它列入后端的显式 `DT_NEEDED` 依赖，使它在最初的依赖优先加载范围内绑定 GNU OpenMP；之后 SDK 的晚加载复用同一原始模块。构建清单的 `backend_dependency_components` 记录这些组件，组件本身、许可和 COMSOL 安装保持原样。
 
 直接模式的启动兼容逻辑位于 `execution.py`，从当前厂商启动器生成仅省略 libjsig 的私有脚本；不写 COMSOL 安装或用户偏好。两种模式共用相同的数值和缓存策略，真实许可校验保持不变。
+
+用户与开发构建按项目版本区分：稳定版本无测试页/F8/test子命令，不导入或探测可选测试组件；构建用户wheel时排除testing.py。`.dev`开发版本保留完整校准入口；不依据本机是否存在dev目录判断。

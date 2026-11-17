@@ -289,6 +289,21 @@ static int load_matrix(State*s,const BridgeRequest*q,const void*memory,BridgeRes
 bad:free(ptr);free(idx);free(to_csc);free(next);return -1;
 }
 
+static int probe_ipc(const BridgeRequest*q,BridgeResponse*r){
+  r->cuda_status=(int)cudaSetDevice(q->device);if(r->cuda_status){r->status=5;return r->status;}
+  cudaIpcMemHandle_t handle;memcpy(&handle,q->matrix_ipc,sizeof(handle));void *probe=NULL;
+  cudaError_t error=cudaIpcOpenMemHandle(&probe,handle,cudaIpcMemLazyEnablePeerAccess);
+  if(error){
+   r->cuda_status=(int)error;
+   r->status=(error==cudaErrorInvalidResourceHandle||error==cudaErrorNotSupported)?BR_TRANSPORT_UNAVAILABLE:error==cudaErrorMemoryAllocation?2:5;
+   cudaGetLastError();return r->status;
+  }
+  uint64_t value=0;error=cudaMemcpy(&value,probe,sizeof(value),cudaMemcpyDeviceToHost);
+  cudaError_t closed=cudaIpcCloseMemHandle(probe);if(!error)error=closed;
+  r->cuda_status=(int)error;if(error)r->status=5;else if(value!=PGL_BRIDGE_MAGIC)r->status=3;
+  return r->status;
+}
+
 PanguBackend *pc_backend_create(void){return calloc(1,sizeof(State));}
 void pc_backend_destroy(PanguBackend *state){if(state){
  clear(state);const BackendCounts*c=&state->counts;
@@ -306,6 +321,12 @@ int pc_backend_dispatch(PanguBackend *s,const BridgeRequest *q,BridgeResponse *r
   if(create_handle(s,&s->ready_handle,q,r)&&!r->status)r->status=5;
   r->stage=BR_INITIALIZE;return r->status;
  }
+ if(q->command==BR_PROBE_IPC){
+  r->stage=BR_PROBE_IPC;
+  if((!s->h&&!s->ready_handle)||q->memory_space!=BR_MEMORY_IPC){r->status=3;return r->status;}
+  return probe_ipc(q,r);
+ }
+
   if(q->n==0||q->n>INT32_MAX||q->nnz==0||q->nnz>INT32_MAX||(q->nrhs<1||q->nrhs>65536)||q->matrix_type<0||q->matrix_type>4||q->matrix_view<0||q->matrix_view>2||(q->value_type!=1&&q->value_type!=5)||q->memory_space<BR_MEMORY_HOST||q->memory_space>BR_MEMORY_IPC){r->status=3;goto done;}
   uint64_t element=q->value_type==5?16:8,limit=UINT64_C(20)*1024*1024*1024;
   uint64_t dense=q->n*q->nrhs*element;

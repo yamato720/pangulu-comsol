@@ -1,0 +1,15 @@
+PanguLU–COMSOL 0.7.0 用户版验收
+数值组件：0.5.0；厂商 SDK：原始 26.46（未更换）
+用户版：五个页面；无测试页/F8/test命令；安装包无 testing.py
+worker：实际 IPC 导入返回400，分析前选择 HOST共享内存传输；计算仍为 PanguLU GPU
+S：59/59频点，236/236字段通过；有限性、CFD/Mapping、物理DOF核对通过
+最大相对L2：4.05599437324e-10；最大相对最大误差：4.82710034081e-10
+S 求解调用：228.971秒；CLI含启动载入保存：245.210秒
+数值阶段失败：0；资源清理错误：0
+回归：39项Python；8项探针故障注入；worker/direct各64项适配；4个COMSOL模型
+输入/参考模型、原始SDK、原始许可、COMSOL启动器、本机配置哈希一致
+既有COMSOL偏好配置值保持一致；COMSOL正常退出更新首行时间戳，原始文件哈希因此改变
+结果模型：/home/lwf/comsol-projects/pangulu-comsol/data/runs/user_release_20261117T142618/S_user_worker_solved.mph
+结果核对：/home/lwf/comsol-projects/pangulu-comsol/data/runs/gui-result-check_20261117T145716_348381/result.json
+原始日志：/home/lwf/comsol-projects/pangulu-comsol/data/runs/comsol_20261117T145311_116806
+详细证据：/home/lwf/comsol-projects/pangulu-comsol/data/runs/user_release_20261117T142618/report.json

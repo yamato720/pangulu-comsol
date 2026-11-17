@@ -9,13 +9,15 @@ import unittest
 from unittest.mock import patch
 import sys
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[2]/'src/python'))
-from pangulu_comsol import cli, testing
+from pangulu_comsol import cli, testing, development
 from pangulu_comsol import runtime as core
 from pangulu_comsol.tui import PanguComsolApp
 from textual.widgets import Select, TabbedContent, Button
 
 
 class OptionalBackendTests(unittest.TestCase):
+    def setUp(self):
+        mode=patch.object(development,'is_development_build',return_value=True);mode.start();self.addCleanup(mode.stop)
     def fixture(self,folder):
         root=pathlib.Path(folder);comsol=root/'comsol';(comsol/'bin').mkdir(parents=True);(comsol/'bin/comsol').write_text('fixture')
         native=comsol/'ext/cudss/glnxa64/libcudss.so.0.7.1';native.parent.mkdir(parents=True);native.write_bytes(b'original native fixture')
@@ -69,6 +71,8 @@ class OptionalBackendTests(unittest.TestCase):
 
 
 class OptionalMenuTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        mode=patch.object(development,'is_development_build',return_value=True);mode.start();self.addCleanup(mode.stop)
     async def test_keyboard_selects_test_backend_without_changing_normal_launch(self):
         with tempfile.TemporaryDirectory() as folder,patch.object(core,'ROOT',pathlib.Path(folder)):
             app=PanguComsolApp()

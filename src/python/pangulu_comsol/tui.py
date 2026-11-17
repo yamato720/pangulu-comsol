@@ -18,7 +18,7 @@ from textual.worker import get_current_worker
 from . import __version__
 from . import cli
 from . import runtime as core
-from . import testing
+from . import development
 
 
 class ActionButton(Button):
@@ -79,7 +79,6 @@ class PanguComsolApp(App[int]):
         ("f5", "show_tab('licences')", "授权"),
         ("f6", "refresh", "刷新"),
         ("f7", "check", "检查"),
-        ("f8", "show_tab('tests')", "测试"),
         ("ctrl+c", "cancel", "取消"),
         ("ctrl+q", "quit", "退出"),
     ]
@@ -114,6 +113,12 @@ class PanguComsolApp(App[int]):
 
     def __init__(self):
         super().__init__()
+        self.developer = development.is_development_build()
+        self.test_tools = None
+        if self.developer:
+            from . import testing
+            self.test_tools = testing
+            self.bind("f8", "show_tab('tests')", description="测试")
         self.data_home = core.ROOT
         self.busy = False
         self.last_output = ""
@@ -156,7 +161,7 @@ class PanguComsolApp(App[int]):
                     yield Select([("PanguLU", "pangu"), ("NVIDIA cuDSS", "cudss")], value="pangu", allow_blank=False, id="backend")
                     yield Label("PanguLU 执行方式",classes="field-label")
                     yield Select([("worker 独立进程","worker"),("直接封装，同进程","direct")],value="worker",allow_blank=False,id="execution")
-                    yield Static("直接模式为本次启动取消 libjsig 预加载，使用同一份原始 SDK 与授权。",classes="helper")
+                    yield Static("默认使用独立求解进程；可按模型选择执行方式。两种方式均使用原始 SDK 与授权。",classes="helper")
                     yield Label("线程数（留空继承原有设置）", classes="field-label")
                     yield Input(placeholder="继承原有设置", id="threads")
                     yield Static("COMSOL 会独立运行，启动提交后可继续使用菜单。带模型路径时打开工作副本；在 COMSOL 中选择 PanguLU 后计算。", classes="helper")
@@ -188,27 +193,28 @@ class PanguComsolApp(App[int]):
                     with Horizontal(classes="actions"):
                         yield ActionButton("保存选择", id="select-licences", classes="operation-button")
                         yield ActionButton("自动使用全部", id="auto-licences", classes="operation-button")
-            with TabPane("测试",id="tests"):
-                with VerticalScroll():
-                    yield Static("正在读取可选测试组件…",id="test-state",classes="card")
-                    yield Label("测试后端",classes="field-label")
-                    yield Select([(label,name) for name,label in testing.BACKENDS.items()],value="cudss",allow_blank=False,id="test-backend")
-                    yield Label("PanguLU 执行方式",classes="field-label")
-                    yield Select([("worker 独立进程","worker"),("直接封装，同进程","direct")],value="worker",allow_blank=False,id="test-execution",disabled=True)
-                    yield Label("GUI 模型文件（可留空）",classes="field-label")
-                    yield Input(placeholder="/path/to/model.mph",id="test-model-path")
-                    yield Label("线程数（GUI 留空继承，数值测试留空用 8）",classes="field-label")
-                    yield Input(placeholder="继承原设置 / 数值测试 8",id="test-threads")
-                    yield Static("cuDSS 封装调用原生 NVIDIA 核心；PanguLU 可选择执行方式。GUI 中选择对应 Direct 节点，模型路径打开工作副本。",classes="helper")
-                    with Horizontal(classes="actions"):
-                        yield ActionButton("启动测试 GUI",id="launch-test",classes="operation-button")
-                        yield ActionButton("构建 cuDSS 校准组件",id="build-tests",classes="operation-button")
-                    yield Label("S 档验收工程目录",classes="field-label")
-                    yield Input(placeholder="/path/to/study3-pangulu-s",id="test-project-path")
-                    yield Select([("20 kHz 单频","20000"),("完整 59 频点","all")],value="20000",allow_blank=False,id="test-frequencies")
-                    yield Static("S 档 Study 3 验收复用已有 CFD/Mapping，逐频核对四场、有限性和实际库映射。测试源码与模型单独提供。",classes="helper")
-                    with Horizontal(classes="actions"):
-                        yield ActionButton("运行数值测试",id="benchmark-test",classes="operation-button")
+            if self.developer:
+                with TabPane("测试",id="tests"):
+                    with VerticalScroll():
+                        yield Static("正在读取可选测试组件…",id="test-state",classes="card")
+                        yield Label("测试后端",classes="field-label")
+                        yield Select([(label,name) for name,label in self.test_tools.BACKENDS.items()],value="cudss",allow_blank=False,id="test-backend")
+                        yield Label("PanguLU 执行方式",classes="field-label")
+                        yield Select([("worker 独立进程","worker"),("直接封装，同进程","direct")],value="worker",allow_blank=False,id="test-execution",disabled=True)
+                        yield Label("GUI 模型文件（可留空）",classes="field-label")
+                        yield Input(placeholder="/path/to/model.mph",id="test-model-path")
+                        yield Label("线程数（GUI 留空继承，数值测试留空用 8）",classes="field-label")
+                        yield Input(placeholder="继承原设置 / 数值测试 8",id="test-threads")
+                        yield Static("cuDSS 封装调用原生 NVIDIA 核心；PanguLU 可选择执行方式。GUI 中选择对应 Direct 节点，模型路径打开工作副本。",classes="helper")
+                        with Horizontal(classes="actions"):
+                            yield ActionButton("启动测试 GUI",id="launch-test",classes="operation-button")
+                            yield ActionButton("构建 cuDSS 校准组件",id="build-tests",classes="operation-button")
+                        yield Label("S 档验收工程目录",classes="field-label")
+                        yield Input(placeholder="/path/to/study3-pangulu-s",id="test-project-path")
+                        yield Select([("20 kHz 单频","20000"),("完整 59 频点","all")],value="20000",allow_blank=False,id="test-frequencies")
+                        yield Static("S 档 Study 3 验收复用已有 CFD/Mapping，逐频核对四场、有限性和实际库映射。测试源码与模型单独提供。",classes="helper")
+                        with Horizontal(classes="actions"):
+                            yield ActionButton("运行数值测试",id="benchmark-test",classes="operation-button")
         yield Static("就绪", id="operation")
         yield RichLog(id="activity", max_lines=100, wrap=True, min_width=20)
         yield Static("↑↓ 移动  Enter 操作  空格切换  Esc 页签 · 蓝框/▶ 焦点，✓ 已勾选", id="navigation-hint")
@@ -224,7 +230,7 @@ class PanguComsolApp(App[int]):
 
     def update_execution_choices(self):
         self.query_one('#execution',Select).disabled=self.busy or self.query_one('#backend',Select).value!='pangu'
-        self.query_one('#test-execution',Select).disabled=self.busy or self.query_one('#test-backend',Select).value!='pangu'
+        if self.developer:self.query_one('#test-execution',Select).disabled=self.busy or self.query_one('#test-backend',Select).value!='pangu'
 
     @on(Select.Changed,'#backend')
     @on(Select.Changed,'#test-backend')
@@ -268,6 +274,8 @@ class PanguComsolApp(App[int]):
         self.query_one(Tabs).focus()
 
     def action_show_tab(self, name):
+        if name == "tests" and not self.developer:
+            return
         self.query_one("#pages", TabbedContent).active = name
         self.focus_page(name)
 
@@ -299,8 +307,9 @@ class PanguComsolApp(App[int]):
     @work(thread=True, group="refresh", exclusive=True, exit_on_error=False)
     def refresh_state(self, reload_forms=False):
         try:
-            state = {"settings": core.settings(), "package": cli.package_info(), "licences": cli.list_licences(), "tests":testing.status(),
+            state = {"settings": core.settings(), "package": cli.package_info(), "licences": cli.list_licences(),
                      "configured": cli.config_file().is_file()}
+            if self.developer:state["tests"] = self.test_tools.status()
         except (OSError, ValueError) as error:
             state = {"error": str(error)}
         if not get_current_worker().is_cancelled:
@@ -327,9 +336,10 @@ class PanguComsolApp(App[int]):
         self.query_one("#overview-state", Static).update(Text(overview))
         sdk_text = f"PanguLU SDK：{sdk_label}\n{sdk.get('path', sdk.get('message', ''))}\n运行组件：{module_label}"
         self.query_one("#sdk-state", Static).update(Text(sdk_text))
-        tests=state["tests"]
-        self.query_one("#test-state",Static).update(Text("cuDSS 校准组件："+tests["directory"]+"\nPanguLU 运行组件："+tests['pangu_directory']+"\n"+"\n".join(
-            item["label"]+"："+("可用" if item["available"] else "未就绪") for item in tests["backends"])))
+        if self.developer:
+            tests=state["tests"]
+            self.query_one("#test-state",Static).update(Text("cuDSS 校准组件："+tests["directory"]+"\nPanguLU 运行组件："+tests['pangu_directory']+"\n"+"\n".join(
+                item["label"]+"："+("可用" if item["available"] else "未就绪") for item in tests["backends"])))
         choices = self.query_one("#licence-list", SelectionList)
         choices.clear_options()
         choices.add_options([(Text(item["name"]), item["name"], item["selected"]) for item in licences])
