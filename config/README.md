@@ -13,8 +13,8 @@
 | `comsol_root` | COMSOL 安装目录；留空时自动查找，多份安装时需指定 |
 | `cuda_root` | CUDA 运行库目录；配套目录一般为 `runtime/cuda` |
 | `licensed_gpu_index` | 原始 SDK 已授权 GPU 列表中的索引，默认 0 |
-| `ordering` | Pangu 重排序：0=L0，1=L1；复用级别为 L2 |
-| `gui_global_options` | 在 GUI 动态提供 Pangu 选项，不自动选择、计算或保存 |
+| `ordering` | PanguLU 重排序：0=L0，1=L1；复用级别为 L2 |
+| `gui_global_options` | 在 GUI 动态提供 PanguLU 选项，不自动选择、计算或保存 |
 | `licence_files` | `licence/` 下的原始许可文件名列表；空列表时读取全部 `.key` / `.license` |
 
 `config set` 的数值、布尔和列表值使用 JSON 写法，如 `0`、`false`、`["customer.key"]`。许可选择也可直接使用 `license use customer.key` 或 `license auto`。

@@ -33,3 +33,6 @@ __pycache__/
 *.so.*
 *.jar
 *.egg-info/
+
+# Optional calibration belongs to development builds.
+/src/python/pangulu_comsol/testing.py

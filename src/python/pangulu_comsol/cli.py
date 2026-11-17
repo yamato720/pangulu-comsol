@@ -1,4 +1,4 @@
-"""Public CLI for configuration, execution, local SDK packages and licences."""
+"""PanguLU–COMSOL CLI for configuration, execution, local SDK packages and licences."""
 import argparse
 import json
 import pathlib
@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 from . import runtime as core
-from . import testing
+from . import development
 from . import __version__
 
 VERSION = __version__
@@ -200,9 +200,9 @@ def parser():
     item.add_argument('input', nargs='?', help='Optional MPH model')
     item.add_argument('--threads', type=int)
     item.add_argument('--backend', choices=['pangu', 'cudss'], default='pangu')
-    item.add_argument('--execution',choices=['worker','direct'],help='Pangu execution; default worker. Direct uses a session launcher without libjsig preloading')
+    item.add_argument('--execution',choices=['worker','direct'],help='PanguLU execution; default worker. Direct uses a session launcher without libjsig preloading')
     item.add_argument('--detach', action='store_true', help='Start GUI in its own session and return immediately')
-    package = commands.add_parser('package', help='Manage manually downloaded, local Pangu SDK archives').add_subparsers(dest='action', required=True)
+    package = commands.add_parser('package', help='Manage manually downloaded, local PanguLU SDK archives').add_subparsers(dest='action', required=True)
     package.add_parser('status')
     for action in ['install', 'update']:
         item = package.add_parser(action)
@@ -219,23 +219,25 @@ def parser():
     commands.add_parser('status', help='Show module configuration and imported licences')
     commands.add_parser('discover', help='Find local COMSOL installations')
     commands.add_parser('build', help='Build production components from the application sources')
-    test=commands.add_parser('test',help='Select optional cuDSS calibration backends').add_subparsers(dest='action',required=True)
-    test.add_parser('status',help='List native and optional test backends')
-    item=test.add_parser('build',help='Build separately provided local test sources')
-    item.add_argument('--source',type=pathlib.Path,help='Optional mycudss source directory')
-    item=test.add_parser('run',help='Open GUI using a selected test backend')
-    item.add_argument('input',nargs='?',help='Optional MPH model; opens a working copy')
-    item.add_argument('--backend',choices=list(testing.BACKENDS),default='cudss')
-    item.add_argument('--execution',choices=['worker','direct'],help='Pangu execution mode only')
-    item.add_argument('--threads',type=int)
-    item.add_argument('--detach',action='store_true')
-    item=test.add_parser('benchmark',help='Run the separately provided S numeric acceptance tools')
-    item.add_argument('--backend',choices=list(testing.BACKENDS),default='cudss')
-    item.add_argument('--execution',choices=['worker','direct'],help='Pangu execution mode only')
-    item.add_argument('--project',type=pathlib.Path,required=True)
-    item.add_argument('--frequencies',choices=['20000','all'],default='20000')
-    item.add_argument('--threads',type=int,default=8)
-    item.add_argument('--repeat',type=int,default=1)
+    if development.is_development_build():
+        from . import testing
+        test=commands.add_parser('test',help='Select optional cuDSS calibration backends').add_subparsers(dest='action',required=True)
+        test.add_parser('status',help='List native and optional test backends')
+        item=test.add_parser('build',help='Build separately provided local test sources')
+        item.add_argument('--source',type=pathlib.Path,help='Optional mycudss source directory')
+        item=test.add_parser('run',help='Open GUI using a selected test backend')
+        item.add_argument('input',nargs='?',help='Optional MPH model; opens a working copy')
+        item.add_argument('--backend',choices=list(testing.BACKENDS),default='cudss')
+        item.add_argument('--execution',choices=['worker','direct'],help='PanguLU execution mode only')
+        item.add_argument('--threads',type=int)
+        item.add_argument('--detach',action='store_true')
+        item=test.add_parser('benchmark',help='Run the separately provided S numeric acceptance tools')
+        item.add_argument('--backend',choices=list(testing.BACKENDS),default='cudss')
+        item.add_argument('--execution',choices=['worker','direct'],help='PanguLU execution mode only')
+        item.add_argument('--project',type=pathlib.Path,required=True)
+        item.add_argument('--frequencies',choices=['20000','all'],default='20000')
+        item.add_argument('--threads',type=int,default=8)
+        item.add_argument('--repeat',type=int,default=1)
     for action in ['inspect', 'configure', 'restore']:
         item = commands.add_parser(action)
         item.add_argument('input')
@@ -243,7 +245,7 @@ def parser():
         item.add_argument('--target', default='auto')
         item.add_argument('--run', action='store_true')
         item.add_argument('--threads', type=int)
-        item.add_argument('--execution',choices=['worker','direct'],help='Pangu execution mode; default worker')
+        item.add_argument('--execution',choices=['worker','direct'],help='PanguLU execution mode; default worker')
     return app
 
 
@@ -294,6 +296,7 @@ def main(argv=None):
     elif args.command == 'build':
         core.build()
     elif args.command == 'test':
+        from . import testing
         if args.action=='status':display(testing.status())
         elif args.action=='build':display(testing.build(args.source))
         elif args.action=='benchmark':return testing.benchmark(args)

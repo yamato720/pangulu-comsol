@@ -1,5 +1,5 @@
 include README.md pangu-comsol start.sh config/distribution.json
-recursive-include src *.c *.cpp *.h *.java
+recursive-include src *.c *.cpp *.cu *.h *.java
 prune dev
 prune data
 prune runtime

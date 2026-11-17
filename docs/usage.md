@@ -1,6 +1,6 @@
 # 安装与使用
 
-客户版结构和操作见 [客户说明](customer-README.txt)。本模块目前验证 Linux x86_64、COMSOL 6.4、Pangu ABI 2 和 NVIDIA CUDA 12.9。
+客户版结构和操作见 [客户说明](customer-README.txt)。本模块目前验证 Linux x86_64、COMSOL 6.4、PanguLU ABI 2 和 NVIDIA CUDA 12.9。
 
 ## 终端应用与安装
 
@@ -10,19 +10,7 @@
 
 菜单包含概览、配置、运行、SDK 包和授权页面。F1–F5 切换页面，F6 刷新，F7 检查，Ctrl+C 取消当前操作，Ctrl+Q 退出。SDK 更新和组件构建期间要等待操作完成或取消收尾；COMSOL GUI 独立运行，退出菜单不会关闭已提交的 GUI。
 
-F8 打开可选测试页，手动选择原生 cuDSS、cuDSS 直接封装或 cuDSS worker 封装，可启动测试 GUI 或运行单独提供的 S 数值验收工具。`test status` 查看可用性，`test build [--source 目录]` 构建校准组件；组件位于 `runtime/tests/mycudss/`。测试源码、模型和验收资料单独提供，不随正式应用安装。
-
-测试页也可选择 Pangu，再选择 worker/direct 执行方式。Pangu 组件通过普通 `build` 构建；`test build` 仅构建可选 NVIDIA 校准组件。
-
-```bash
-./pangu-comsol test run --backend mycudss-direct /path/to/model.mph
-./pangu-comsol test benchmark --backend mycudss-worker \
-  --project /path/to/study3-pangulu-s --frequencies all --threads 8 --repeat 2
-```
-
-测试 GUI 的模型路径打开工作副本；在模型中使用 Direct/cuDSS。S 档数值验收求解 Study 3，复用已有 CFD/Mapping，核对完成标记、实际库映射、全部频点、有限性、物理 DOF 与四字段 CPU 参考，结果保存到 `data/runs/test_<后端>_<时间戳>/`。封装使用配置所选的 CUDA 目录，并调用同一份原生 NVIDIA cuDSS，独立于 Pangu SDK 与许可。
-
-直接封装转发已观察的 16 个原生接口；worker 封装目前覆盖单 GPU、一般 full CSR、FP64 实数/复数、单 RHS，取消在阶段之间生效。这是已验证的测试契约，其他矩阵类型与高级模式需单独验证。
+用户版不包含测试页、F8 或 `test` 命令，也不安装可选测试模块。开发构建通过 `.dev` 版本标识启用，工具和模型验收说明见开发分支。
 
 ↑↓ 和 Tab / Shift+Tab 在控件间移动，蓝框及按钮上的 `▶` 标出当前焦点；Enter 执行按钮或打开下拉框，空格切换开关或勾选许可。Esc 回到页签，←→ 切换页面；绿色表示当前页面。输入框的 ←→ 保留文本编辑，下拉框打开后 ↑↓ 选择、Enter 确认、Esc 取消。许可列表内 ↑↓ 移动，到首尾后继续移动可离开列表；行焦点不等于勾选，勾选后仍需“保存选择”。
 
@@ -37,17 +25,15 @@ F8 打开可选测试页，手动选择原生 cuDSS、cuDSS 直接封装或 cuDS
 ./pangu-comsol discover
 ```
 
-Pangu 默认通过独立 worker 执行；可用以下开关选择同进程方式：
+PanguLU 默认通过独立 worker 执行；可用以下开关选择同进程方式：
 
 ```bash
 ./start.sh --execution direct /path/to/model.mph
 ./pangu-comsol configure /path/to/model.mph --target sol1/s1/fc1 \
   --output /path/to/model-direct.mph --execution direct --run
-./pangu-comsol test benchmark --backend pangu --execution direct \
-  --project /path/to/study3-pangulu-s --frequencies all
 ```
 
-执行方式作用于本次进程，模型中的 Pangu 节点保持标准 Direct 结构。两种方式使用同一份 `libpangu_backend.so`，保持相同矩阵处理及 SDK 数值策略；direct 使用进程内暂存区，向量暂存及输出有限性检查仍保留。
+执行方式作用于本次进程，模型中的 PanguLU 节点保持标准 Direct 结构。两种方式使用同一份 `libpangu_backend.so`，保持相同矩阵处理及 SDK 数值策略；direct 使用进程内暂存区，向量暂存及输出有限性检查仍保留。worker 在分析前探测进程间 CUDA IPC；已知导出/导入能力不可用时切换为共享 HOST 传输，继续调用原始 PanguLU GPU。不会以原生 cuDSS 替代 PanguLU，也不会重试失败的数值阶段。
 
 直接模式在 `runtime/launchers/` 生成当前 COMSOL 启动脚本的私有副本，仅省略 `libjsig` 预加载，并用配置中的安装根目录启动。原始 SDK 在存在该预加载时会报告完整性检查失败；此模式不修改或跳过 SDK 授权。它改变了本次 JVM 信号预加载条件，不能据此保证任意插件或故障处理语义等价。默认 worker 使用原始 COMSOL 启动器。会话 `session.json` 记录执行方式、原脚本/私有脚本哈希及实际后端库路径。
 
@@ -77,13 +63,13 @@ SDK 包由用户自行下载，CLI 只接收本地文件，不内置下载地址
 
 ## 模型与 GUI
 
-Pangu GUI 在空闲时为各 Study 已生成的兼容求解器树添加标准 Pangu Direct 选项，也识别后来打开的模型和新生成的求解器序列。尚未生成求解器树的 Study 需先生成配置。在 Fully Coupled、Segregated Step 等节点的 Linear solver 中选择 Pangu，Direct 内的后端枚举仍使用 cuDSS 槽位。
+PanguLU GUI 在空闲时为各 Study 已生成的兼容求解器树添加标准 PanguLU Direct 选项，也识别后来打开的模型和新生成的求解器序列。尚未生成求解器树的 Study 需先生成配置。在 Fully Coupled、Segregated Step 等节点的 Linear solver 中选择 PanguLU，Direct 内的后端枚举仍使用 cuDSS 槽位。
 
 注册选项保留原选择、启用状态和已有解，不自动计算、清解或保存。显式 `apply` / `restore` 会切换指定消费者并清除对应 solver 的旧解。
 
 命令行带模型路径启动时，先复制为会话中的工作副本。GUI 内直接打开原文件后按 Ctrl+S 仍会保存新增节点，保留原文件时使用 Save As。保存的是标准 Direct 节点，普通 COMSOL 能读取；普通会话中该节点使用原生 NVIDIA cuDSS，CPU 计算可选择保留的 MUMPS/PARDISO 等节点。
 
-所有 cuDSS 节点在同一 Pangu 进程中都进入适配库；原生 NVIDIA 对照使用独立会话：
+所有 cuDSS 节点在同一 PanguLU 进程中都进入适配库；原生 NVIDIA 对照使用独立会话：
 
 ```bash
 ./start.sh --backend cudss /path/to/model.mph
@@ -130,6 +116,8 @@ org.pangulu.comsol.PanguModule.restore(model, "sol1/s1/fc1");
 
 ## 适配范围
 
-单 GPU，实数/复数 FP64，CSR 输入转换为 CSC，支持 GENERAL/SYMMETRIC/HERMITIAN/SPD/HPD 及对应存储视图。内部维度与非零元数量限制在 int32 范围；多个 RHS 要求连续列主序。使用 strict 结构检查、L0/L2、hybrid memory never、hybrid compute off。
+单 GPU，实数/复数 FP64；支持的 GPU CSR 使用驻留路径，HOST 传输按需规范化为 CSC，支持 GENERAL/SYMMETRIC/HERMITIAN/SPD/HPD 及对应存储视图。内部维度与非零元数量限制在 int32 范围；多个 RHS 要求连续列主序。使用 strict 结构检查、L0/L2、hybrid memory never、hybrid compute off。
 
-转置/伴随、FP32、多 GPU、非连续多 RHS 等未实现路径会拒绝。cuDSS 的重排序、主元和诊断策略不保证与 Pangu 一一对应。其他数值模式需按对应模型和功能验证。
+转置/伴随、FP32、多 GPU、非连续多 RHS 等未实现路径会拒绝。cuDSS 的重排序、主元和诊断策略不保证与 PanguLU 一一对应。其他数值模式需按对应模型和功能验证。
+
+升级到用户版0.7.0时须使用数值组件0.5.0。组件不匹配会在启动前提示更新；重新构建不删除SDK、许可和配置。
